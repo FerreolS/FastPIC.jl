@@ -1,0 +1,14 @@
+name = "FastPIC"
+uuid = "b925a9a2-b992-4366-b7a4-c4262a454b9a"
+authors = ["FerreolS <ferreol.soulez@univ-lyon1.fr>"]
+version = "0.0.0"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Aqua", "Test"]
