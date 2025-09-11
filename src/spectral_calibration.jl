@@ -30,7 +30,7 @@ function compute_lasers_amplitudes(
             A[i, index] = A[index, i] = mw' * model[:, i]
         end
     end
- 
+
     return inv(A) * b
 
 end
@@ -87,6 +87,126 @@ function spectral_calibration(::Val{order}, ::Val{lines}, ref, lasers_λs, laser
 end
 
 
+function build_λrange(λs::AbstractMatrix{<:Real}; superres = 1)
+    nb_el = round(Int, size(λs, 1) * superres)
+    blue = λs[1, :]
+    red = λs[end, :]
+    return range(start = minimum(blue), stop = maximum(red), step = median((red .- blue)) ./ nb_el)
+end
+
+function build_λrange(λs::Vector{Vector{Float64}}, valid_lenslets; superres = 1)
+    idx = findall(valid_lenslets)
+    nb_el = round(Int, maximum(length.(λs[idx])) * superres)
+    blue = minimum.(λs[idx])
+    red = maximum.(λs[idx])
+    return range(start = minimum(blue), stop = maximum(red), step = median((red .- blue)) ./ nb_el)
+end
+
+function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets)
+    nλ = length(λ)
+    transmission = zeros(Float64, length(valid_lenslets))
+    MI = Vector{SparseMatrixCSC{Float64, Int}}(undef, length(valid_lenslets))
+    A = zeros(Float64, nλ, nλ)
+    diagA = 2 * ones(Float64, nλ)
+    diagA[1] = 1
+    diagA[end] = 1
+    A = Array(BandedMatrix((0 => diagA, 1 => -1 * ones(nλ - 1), -1 => -1 * ones(nλ - 1)), (nλ, nλ)))
+
+    b = zeros(Float64, nλ)
+    foreach(findall(valid_lenslets)) do idx
+        (; value, precision) = spectra[idx]
+
+        profile_wavelength = get_wavelength(coefs[idx], reference_pixel, 1:length(value))
+        MI[idx] = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength)...)
+        b .+= Array(MI[idx]' * (precision .* value))
+        A .+= Array(MI[idx]' * (precision .* MI[idx]))
+    end
+
+
+    template = A \ b
+
+    OhMyThreads.tforeach(findall(valid_lenslets)) do idx
+        (; value, precision) = spectra[idx]
+        m = (MI[idx] * template)
+        transmission[idx] = sum((mp = m .* precision) .* value) / sum(m .* mp)
+    end
+
+    transmission .*= 1 ./ median(transmission[findall(valid_lenslets)])
+
+    return template, transmission
+end
+
+function lamp_model(λ, spectrum_template, template_wavelength)
+    lo, up = get_lower_uppersamples(λ)
+    model = build_sparse_interpolation_integration_matrix(template_wavelength, lo, up) * spectrum_template
+    return model
+end
+
+function laser_model(λ, fwhm_pixels, lasers_λs, data)
+    idx = max.(2, [searchsortedlast(λ, l) for l in lasers_λs])
+    las = LaserModel(lasers_λs, fwhm_pixels .* (λ[idx] .- λ[idx .- 1]))
+    images = hcat(compute_laser_images(las, λ), ones(length(λ)))
+    amplitude = compute_lasers_amplitudes(Val(length(lasers_λs) + 1), images, data)
+    return images * amplitude
+end
+
+
+function spectral_refinement(coefs, lamp, lamp_template, wavelength, reference_pixel, lasers_λs, fwhm_pixels, laser)
+    function loss(x)
+        wvlngth = get_wavelength(x, reference_pixel, axes(lamp, 1))
+        lamp_spectrum = lamp_model(wvlngth, lamp_template, wavelength)
+        laser_spectrum = laser_model(wvlngth, fwhm_pixels, lasers_λs, laser)
+        return likelihood(ScaledL2Loss(), lamp, lamp_spectrum) + likelihood(laser, laser_spectrum)
+    end
+    #scale = 1e-7 .* vcat(10. .^ (-(1:length(coefs))))
+    scale = 1.0e-8 .* ones(length(coefs))
+    Newuoa.optimize!(loss, coefs, 1, 1.0e-9; scale = scale, check = false, maxeval = 10_000, verbose = 0)
+    return coefs
+end
+function recalibrate_wavelengths(
+        λ,
+        coefs,
+        order,
+        lamp_profile,
+        laser_profile,
+        lasers_λs,
+        lasers_model,
+        reference_pixel,
+        valid_lenslets;
+        loop = 2
+    )
+
+    template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_profile, valid_lenslets)
+
+    new_coefs = similar(coefs)
+
+    p = Progress(sum(valid_lenslets) * loop; showspeed = true)
+
+    for _ in 1:loop
+        @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets)) do i
+            if (order + 1) > length(coefs[i])
+                coef = vcat(coefs[i], zeros(order - length(coefs[i]) + 1))
+            else
+                coef = copy(coefs[i])
+            end
+            try
+                new_coefs[i] = spectral_refinement(coef, lamp_profile[i], template, λ, reference_pixel, lasers_λs, lasers_model[i].fwhm, laser_profile[i])
+            catch e
+                @warn "Spectral refinement failed for lenslet $i: $e"
+                valid_lenslets[i] = false
+            end
+            next!(p)
+        end
+        coefs = copy(new_coefs)
+
+        template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_profile, valid_lenslets)
+
+    end
+    ProgressMeter.finish!(p)
+    return coefs, template, transmission
+end
+
+
 function spectral_calibration(
         lasers,
         lamp_spectra,
@@ -127,7 +247,10 @@ function spectral_calibration(
                 if any(diag(W) .< 1.0e-4)
                     throw("W singular  for lenslet $i")
                 end
-                coefs[i] = spectral_calibration(spectral_order, reference_pixel, lasers_λs, las[i].position, W)
+                coefs[i] = spectral_calibration(
+                    spectral_initial_order
+                    , reference_pixel, lasers_λs, las[i].position, W
+                )
                 if any(isnan.(coefs[i]))
                     throw("NaN found in coefs for lenslet $i")
                 end

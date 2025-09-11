@@ -1,8 +1,10 @@
 module FastPIC
 
-using ConcreteStructs,
+using BandedMatrices,
+    ConcreteStructs,
     DelimitedFiles,
     EasyFITS,
+    InterpolationKernels,
     LinearAlgebra,
     OhMyThreads,
     Optimisers,
@@ -11,6 +13,7 @@ using ConcreteStructs,
     Parameters,
     ProgressMeter,
     Random,
+    SparseArrays,
     StaticArrays,
     StatsBase,
     TwoDimensional,
@@ -21,6 +24,7 @@ using ConcreteStructs,
 include("calibration.jl")
 include("profile.jl")
 include("profile_calibration.jl")
+include("interpolations.jl")
 include("spectral_calibration.jl")
 
 end

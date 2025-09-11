@@ -35,7 +35,7 @@ using LazyArtifacts
         valid_lenslets .= false
         valid_lenslets[test_indices] .= true
         calib_params = FastPIC.FastPICParams(nλ = nλ)
-        profiles, bboxes, valid_lenslets, lamp_profile, model = FastPIC.calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
+        profiles, bboxes, valid_lenslets, lamp_spectra, model = FastPIC.calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     end
     # Write your tests here.
 end
