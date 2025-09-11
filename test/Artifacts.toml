@@ -1,0 +1,7 @@
+[calibrationtestdata]
+git-tree-sha1 = "0414124c1645795ee83dee7dfdd30272ad7bb704"
+lazy = true
+
+    [[calibrationtestdata.download]]
+    url = "https://cloud.osu-lyon.fr/public.php/dav/files/bRmFWWQHEGR4ncS/?accept=zip"
+    sha256 = "4318b0bd02a4000debd7d42ba46b44fecbed329874d37f68d9d4e6682681846b"
