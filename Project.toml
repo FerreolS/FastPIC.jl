@@ -3,12 +3,43 @@ uuid = "b925a9a2-b992-4366-b7a4-c4262a454b9a"
 authors = ["FerreolS <ferreol.soulez@univ-lyon1.fr>"]
 version = "0.0.0"
 
+[deps]
+ConcreteStructs = "2569d6c7-a4a2-43d3-a901-331e8e4be471"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+EasyFITS = "a977f4a2-36a7-4172-89e7-19c2726f82e5"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OhMyThreads = "67456a42-1dca-4109-a031-0a68de7e3ad5"
+OptimPackNextGen = "080ffe24-4a27-4ab0-ad71-7b624e73ef8d"
+Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+TwoDimensional = "1907e7ba-7586-4310-a2ba-dd01462aeb50"
+WeightedData = "198d7fc6-4dbd-4d01-be45-be9677e11b0d"
+ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
+
 [compat]
+ConcreteStructs = "0.2.3"
+DelimitedFiles = "1.9.1"
+EasyFITS = "0.7.0"
+LinearAlgebra = "1.11.0"
+OhMyThreads = "0.8.3"
+OptimPackNextGen = "0.4.3"
+Optimisers = "0.4.6"
+Parameters = "0.12.3"
+ProgressMeter = "1.11.0"
+Random = "1.11.0"
+StaticArrays = "1.9.15"
+StatsBase = "0.34.6"
+TwoDimensional = "0.5.2"
+WeightedData = "0.1.0"
+ZippedArrays = "0.2.0"
 julia = "1.10"
 
 [extras]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "Test"]
+test = ["Test"]
