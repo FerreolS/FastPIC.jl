@@ -1,4 +1,3 @@
-
 @with_kw struct BboxParams
     BBOX_DX_LOWER::Int = 2
     BBOX_DX_UPPER::Int = 2
@@ -9,7 +8,7 @@
 end
 
 
-@with_kw struct FastPICParams{R<:Real,Q}
+@with_kw struct FastPICParams{R <: Real, Q}
     @deftype R
     nλ::Int = 3
     @assert (nλ == 3 || nλ == 4)
@@ -38,7 +37,7 @@ end
     @assert spectral_initial_order ≥ 1
     spectral_final_order::Int = 3
     @assert spectral_final_order ≥ spectral_initial_order
-    lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.10e-9][1:nλ]
+    lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
     LASERS_CX1_INIT = -0.6001811340726275
     LASERS_CX2_INIT = -0.3187688427580339
     LASERS_CY1_INIT = 89.9795748752424
@@ -48,7 +47,7 @@ end
     @assert length(lasers_fwhms_init) == nλ
 
 
-    λLAMP_RANGE::Q = LinRange(850e-9, 1600e-9, 10000) # coarse wavelength range of the instrument
+    λLAMP_RANGE::Q = LinRange(850.0e-9, 1600.0e-9, 10000) # coarse wavelength range of the instrument
 
 
     multi_thread::Bool = true

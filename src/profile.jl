@@ -1,8 +1,7 @@
-
 struct Profile{N}
     bbox::BoundingBox{Int64}
     ycenter::Float64
-    cfwhm::Array{Float64,N}
+    cfwhm::Array{Float64, N}
     cx::Vector{Float64}
 end
 
@@ -14,7 +13,7 @@ Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
 
 ((; bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}) = get_profile(bbox2, ycenter, cfwhm, cx)
 
-function get_profile(bbox::BoundingBox{Int64}, ycenter::Float64, cfwhm::Array{Float64,N}, cx::Vector{Float64}) where N
+function get_profile(bbox::BoundingBox{Int64}, ycenter::Float64, cfwhm::Array{Float64, N}, cx::Vector{Float64}) where {N}
 
 
     xorder = length(cx)
@@ -48,15 +47,18 @@ function get_profile(bbox::BoundingBox{Int64}, ycenter::Float64, cfwhm::Array{Fl
 end
 
 
-function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams=BboxParams())
+function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams = BboxParams())
     @unpack_BboxParams bbox_params
     bbox = round(
         Int,
-        BoundingBox(; xmin=center_x - BBOX_DX_LOWER,
-            xmax=center_x + BBOX_DX_UPPER,
-            ymin=center_y - BBOX_DY_LOWER,
-            ymax=center_y + BBOX_DY_UPPER),
-        RoundNearestTiesUp) # rounding mode to preserve bbox size
+        BoundingBox(;
+            xmin = center_x - BBOX_DX_LOWER,
+            xmax = center_x + BBOX_DX_UPPER,
+            ymin = center_y - BBOX_DY_LOWER,
+            ymax = center_y + BBOX_DY_UPPER
+        ),
+        RoundNearestTiesUp
+    ) # rounding mode to preserve bbox size
 
     size(bbox) == (BBOX_WIDTH, BBOX_HEIGHT) || return missing
     ((bbox.xmin ≥ 1) & (bbox.xmax ≤ 2048) & (bbox.ymin ≥ 1) & (bbox.ymax ≤ 2048)) || return missing
@@ -64,12 +66,13 @@ function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams=
 end
 
 
-function extract_model(data::WeightedArray{T,N},
-    profile::Profile;
-    restrict=0.01,
-    nonnegative=false,
-    relative=false
-) where {T,N}
+function extract_model(
+        data::WeightedArray{T, N},
+        profile::Profile;
+        restrict = 0.01,
+        nonnegative = false,
+        relative = false
+    ) where {T, N}
     bbox = profile.bbox
     if relative
         (; value, precision) = data
@@ -85,8 +88,8 @@ function extract_model(data::WeightedArray{T,N},
         model .*= (model .> restrict)
     end
 
-    αprecision = dropdims(sum(model .^ 2 .* precision, dims=1), dims=1)
-    α = dropdims(sum(model .* precision .* value, dims=1), dims=1) ./ αprecision
+    αprecision = dropdims(sum(model .^ 2 .* precision, dims = 1), dims = 1)
+    α = dropdims(sum(model .* precision .* value, dims = 1), dims = 1) ./ αprecision
 
     nanpix = .!isnan.(α)
     if nonnegative
@@ -100,7 +103,7 @@ end
 
 get_wavelength(coefs, ref, pixel) = get_wavelength(Val(length(coefs) - 1), Val(length(pixel)), coefs, ref, pixel)
 
-function get_wavelength(::Val{order}, ::Val{len}, coefs, ref, pixel) where {order,len}
-    fullA = SMatrix{len,order + 1}(((pixel .- ref) ./ ref) .^ reshape(0:order, 1, :))
+function get_wavelength(::Val{order}, ::Val{len}, coefs, ref, pixel) where {order, len}
+    fullA = SMatrix{len, order + 1}(((pixel .- ref) ./ ref) .^ reshape(0:order, 1, :))
     return fullA * coefs
 end
