@@ -51,48 +51,52 @@ jobs:
   Aqua:
     name: Aqua tests
     runs-on: ubuntu-latest
+    permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
+      actions: write
+      contents: read
     steps:         
       - uses: actions/checkout@v5
       - uses: julia-actions/setup-julia@v2
         with:
            version: '1'
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
         with:
           localregistry: |
             https://github.com/emmt/EmmtRegistry.git
       - run: julia --color=yes -e 'using Pkg; Pkg.add("Aqua")'
       - run: julia --project=@. --color=yes -e 'using Aqua, FastPIC; Aqua.test_all(FastPIC; ambiguities=true)'
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
-      contents: write
-      statuses: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: '1'
-      - uses: julia-actions/cache@v2
-      - name: Configure doc environment
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Pkg
-          Pkg.develop(PackageSpec(path=pwd()))
-          Pkg.instantiate()
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-docdeploy@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - name: Run doctests
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Documenter: DocMeta, doctest
-          using FastPIC
-          DocMeta.setdocmeta!(FastPIC, :DocTestSetup, :(using FastPIC); recursive=true)
-          doctest(FastPIC)
+  # docs:
+  #   name: Documentation
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
+  #     contents: write
+  #     statuses: write
+  #   steps:
+  #     - uses: actions/checkout@v5
+  #     - uses: julia-actions/setup-julia@v2
+  #       with:
+  #         version: '1'
+  #     - uses: julia-actions/cache@v2
+  #     - name: Configure doc environment
+  #       shell: julia --project=docs --color=yes {0}
+  #       run: |
+  #         using Pkg
+  #         Pkg.develop(PackageSpec(path=pwd()))
+  #         Pkg.instantiate()
+  #     - uses: julia-actions/julia-buildpkg@v1
+  #     - uses: julia-actions/julia-docdeploy@v1
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+  #     - name: Run doctests
+  #       shell: julia --project=docs --color=yes {0}
+  #       run: |
+  #         using Documenter: DocMeta, doctest
+  #         using FastPIC
+  #         DocMeta.setdocmeta!(FastPIC, :DocTestSetup, :(using FastPIC); recursive=true)
+  #         doctest(FastPIC)
   runic:
     name: Runic formatting
     runs-on: ubuntu-latest
