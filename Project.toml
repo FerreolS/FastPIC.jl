@@ -24,24 +24,23 @@ WeightedData = "198d7fc6-4dbd-4d01-be45-be9677e11b0d"
 ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
 
 [compat]
-BandedMatrices = "1.9.4"
-ConcreteStructs = "0.2.3"
-DelimitedFiles = "1.9.1"
-EasyFITS = "0.7.0"
-InterpolationKernels = "0.2.6"
-LinearAlgebra = "1.11.0"
-OhMyThreads = "0.8.3"
-OptimPackNextGen = "0.4.3"
-Optimisers = "0.4.6"
-Parameters = "0.12.3"
-ProgressMeter = "1.11.0"
-Random = "1.11.0"
-SparseArrays = "1.11.0"
-StaticArrays = "1.9.15"
-StatsBase = "0.34.6"
-TwoDimensional = "0.5.2"
-WeightedData = "0.1.0"
-ZippedArrays = "0.2.0"
+BandedMatrices = "1"
+ConcreteStructs = "0.2"
+DelimitedFiles = "1"
+EasyFITS = "0.7"
+InterpolationKernels = "0.2"
+LinearAlgebra = "1"
+OhMyThreads = "0.8"
+OptimPackNextGen = "0.4"
+Optimisers = "0.4"
+Parameters = "0.12"
+ProgressMeter = "1"
+Random = "1"
+SparseArrays = "1"
+StaticArrays = "1"
+StatsBase = "0.34"
+TwoDimensional = "0.5"
+ZippedArrays = "0.2"
 julia = "1.10"
 
 [extras]
@@ -49,3 +48,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
+
+[sources]
+WeightedData = {url = "https://github.com/FerreolS/WeightedData.jl"}
