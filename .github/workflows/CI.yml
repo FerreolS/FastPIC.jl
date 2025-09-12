@@ -48,6 +48,20 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+  Aqua:
+    name: Aqua tests
+    runs-on: ubuntu-latest
+    steps:         
+      - uses: actions/checkout@v5
+      - uses: julia-actions/setup-julia@v2
+        with:
+           version: '1'
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          localregistry: |
+            https://github.com/emmt/EmmtRegistry.git
+      - run: julia --color=yes -e 'using Pkg; Pkg.add("Aqua")'
+      - run: julia --project=@. --color=yes -e 'using Aqua, FastPIC; Aqua.test_all(FastPIC; ambiguities=true)'
   docs:
     name: Documentation
     runs-on: ubuntu-latest
