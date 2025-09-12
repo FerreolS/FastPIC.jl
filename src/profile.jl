@@ -66,15 +66,15 @@ function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams 
 end
 
 
-function extract_model(
+function extract_spectrum(
         data::WeightedArray{T, N},
         profile::Profile;
         restrict = 0.01,
         nonnegative = false,
-        relative = false
+        boxed = false
     ) where {T, N}
     bbox = profile.bbox
-    if relative
+    if boxed
         (; value, precision) = data
     else
         if N > 2

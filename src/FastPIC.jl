@@ -20,6 +20,9 @@ using BandedMatrices,
     WeightedData,
     ZippedArrays
 
+export FastPICParams,
+    calibrate_profile
+
 
 include("calibration.jl")
 include("profile.jl")
