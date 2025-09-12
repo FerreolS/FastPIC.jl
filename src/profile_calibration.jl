@@ -95,14 +95,14 @@ function refine_lamp_model(
 end
 
 function refine_lamp_model(
-        lamp,
+        lamp::WeightedArray{T, 2},
         profiles,
         lamp_spectra
         ; calib_params::FastPICParams = FastPICParams()
-    )
+    ) where {T}
     @unpack_FastPICParams calib_params
 
-    model = zeros(Float64, size(lamp))
+    model = zeros(T, size(lamp))
 
     valid_lenslets = map(!isnothing, profiles)
     progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
