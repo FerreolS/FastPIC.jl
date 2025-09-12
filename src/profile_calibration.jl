@@ -21,13 +21,14 @@ function calibrate_profile(
     lamp_spectra = Vector{Union{profile_type, Nothing}}(undef, NLENS)
     fill!(lamp_spectra, nothing)
 
+    valid_lenslets = map(!isnothing, profiles)
+
     progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
     #Threads.@threads for i in findall(valid_lenslets)
     # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
     _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
     @allow_boxed_captures _foreach(findall(valid_lenslets)) do i
         if sum(view(lamp, bboxes[i]).precision) == 0
-            valid_lenslets[i] = false
             profiles[i] = nothing
         else
             try
@@ -40,7 +41,6 @@ function calibrate_profile(
 
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                valid_lenslets[i] = false
                 profiles[i] = nothing
             end
         end
@@ -48,14 +48,13 @@ function calibrate_profile(
     end
     ProgressMeter.finish!(progress)
 
-    profiles, lamp_spectra, model, valid_lenslets = refine_lamp_model(
-        valid_lenslets,
+    profiles, lamp_spectra, model = refine_lamp_model(
         lamp,
         profiles,
         lamp_spectra;
         calib_params = calib_params
     )
-    return profiles, bboxes, valid_lenslets, lamp_spectra, model
+    return profiles, bboxes, lamp_spectra, model
 end
 
 function initialize_profile!(
@@ -70,7 +69,7 @@ function initialize_profile!(
 
     bboxes = fill(BoundingBox{Int}(nothing), NLENS)
     profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
-
+    fill!(profiles, nothing)
 
     @inbounds for i in findall(valid_lenslets)
         bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
@@ -86,18 +85,16 @@ function initialize_profile!(
 end
 
 function refine_lamp_model(
-        valid_lenslets,
         lamp,
         profiles
         ; calib_params::FastPICParams = FastPICParams()
     )
     lamp_spectra = extract_spectra(lamp, profiles; restrict = calib_params.lamp_extract_restrict)
 
-    return refine_lamp_model(valid_lenslets, lamp, profiles, lamp_spectra; calib_params = calib_params)
+    return refine_lamp_model(lamp, profiles, lamp_spectra; calib_params = calib_params)
 end
 
 function refine_lamp_model(
-        valid_lenslets,
         lamp,
         profiles,
         lamp_spectra
@@ -107,6 +104,7 @@ function refine_lamp_model(
 
     model = zeros(Float64, size(lamp))
 
+    valid_lenslets = map(!isnothing, profiles)
     progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
 
     for _ in 1:profile_loop
@@ -120,13 +118,11 @@ function refine_lamp_model(
                 resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
             )
             if any(isnan.(profiles[i].cfwhm))
-                valid_lenslets[i] = false
                 profiles[i] = nothing
                 continue
             end
             lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true)
             if any(isnan.(lamp_spectra[i]))
-                valid_lenslets[i] = false
                 profiles[i] = nothing
                 continue
             end
@@ -138,7 +134,7 @@ function refine_lamp_model(
         end
     end
     ProgressMeter.finish!(progress)
-    return profiles, lamp_spectra, model, valid_lenslets
+    return profiles, lamp_spectra, model
 end
 
 
