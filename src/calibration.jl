@@ -30,6 +30,9 @@ end
     extra_width::Int = 2
     profile_loop::Int = 2
     lamp_cfwhms_init::VecOrMat{R} = vcat(2.5, zeros(profile_order))
+    fit_profile_maxeval::Int = 10_000
+    fit_profile_verbose::Bool = false
+    lamp_extract_restrict::R = 0.01 # minimum relative amplitude of the profile to consider when extracting the spectrum
 
 
     # Spectral calibration parameters
@@ -38,17 +41,6 @@ end
     spectral_final_order::Int = 3
     @assert spectral_final_order ≥ spectral_initial_order
     lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
-    LASERS_CX1_INIT = -0.6001811340726275
-    LASERS_CX2_INIT = -0.3187688427580339
-    LASERS_CY1_INIT = 89.9795748752424
-    LASERS_CY2_INIT = -52.635157560302524
-
-    lasers_fwhms_init::Vector{R} = [2.3, 2.4, 2.7, 2.9][1:nλ]
-    @assert length(lasers_fwhms_init) == nλ
-
-
-    λLAMP_RANGE::Q = LinRange(850.0e-9, 1600.0e-9, 10000) # coarse wavelength range of the instrument
-
 
     multi_thread::Bool = true
 end

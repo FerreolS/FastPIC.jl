@@ -30,11 +30,11 @@ function calibrate_profile(
         else
             try
 
-                profiles[i] = fit_profile(lamp, profiles[i])
+                profiles[i] = fit_profile(lamp, profiles[i]; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
                 if any(isnan.(profiles[i].cfwhm))
                     throw("NaN found in profile for lenslet $i")
                 end
-                lamp_spectra[i] = extract_model(lamp, profiles[i])
+                lamp_spectra[i] = extract_spectrum(lamp, profiles[i]; restrict = lamp_extract_restrict, nonnegative = true)
 
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
@@ -56,12 +56,14 @@ function calibrate_profile(
             resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
             # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
 
-            profiles[i] = fit_profile(resi, profiles[i]; relative = true)
+            profiles[i] = fit_profile(
+                resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
+            )
             if any(isnan.(profiles[i].cfwhm))
                 valid_lenslets[i] = false
                 continue
             end
-            lamp_spectra[i] = extract_model(resi, profiles[i]; relative = true)
+            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; relative = true)
             if any(isnan.(lamp_spectra[i]))
                 valid_lenslets[i] = false
                 continue
@@ -119,6 +121,8 @@ end
 function fit_profile(
         data::WeightedArray{T, N},
         profile::Profile{M};
+        maxeval = 10_000,
+        verbose = false,
         relative = false
     ) where {T, N, M}
 
@@ -134,7 +138,7 @@ function fit_profile(
 
     d = relative ? data : view(data, profile.bbox)
     f(x) = likelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)())
-    Newuoa.optimize!(f, vec, 1, 1.0e-9; scale = scale, check = false, maxeval = 10_000, verbose = 0)
+    Newuoa.optimize!(f, vec, 1, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
     return re(vec)
 end
 
