@@ -25,6 +25,7 @@ end
     @assert all(isfinite.(lasers_cxy0s_init))
 
     # Profile Calibration parameters
+    profile_precision::Type = Float32
     profile_order::Int = 3
     @assert profile_order ≥ 1
     extra_width::Int = 2 # extra width around bbox to consider neighboring lenslets when refining the model
