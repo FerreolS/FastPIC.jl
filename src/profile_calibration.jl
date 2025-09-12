@@ -1,8 +1,8 @@
 function calibrate_profile(
-        lamp,
+        lamp::WeightedArray{T, 2}
         ; calib_params::FastPICParams = FastPICParams(),
         valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)
-    )
+    ) where {T}
 
 
     @unpack_FastPICParams calib_params
@@ -17,8 +17,9 @@ function calibrate_profile(
         calib_params = calib_params
     )
 
-    profile_type = ZippedVector{WeightedValue{Float64}, 2, true, Tuple{Vector{Float64}, Vector{Float64}}}
-    lamp_spectra = Vector{profile_type}(undef, NLENS)
+    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
+    lamp_spectra = Vector{Union{profile_type, Nothing}}(undef, NLENS)
+    fill!(lamp_spectra, nothing)
 
     progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
     #Threads.@threads for i in findall(valid_lenslets)
@@ -27,6 +28,7 @@ function calibrate_profile(
     @allow_boxed_captures _foreach(findall(valid_lenslets)) do i
         if sum(view(lamp, bboxes[i]).precision) == 0
             valid_lenslets[i] = false
+            profiles[i] = nothing
         else
             try
 
@@ -39,44 +41,20 @@ function calibrate_profile(
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
                 valid_lenslets[i] = false
+                profiles[i] = nothing
             end
         end
         next!(progress)
     end
     ProgressMeter.finish!(progress)
 
-    model = zeros(Float64, size(lamp))
-
-    progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
-
-    for _ in 1:profile_loop
-        res = lamp .- model
-        model = zeros(Float64, size(lamp))
-        for i in findall(valid_lenslets)
-            resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
-            # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-
-            profiles[i] = fit_profile(
-                resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
-            )
-            if any(isnan.(profiles[i].cfwhm))
-                valid_lenslets[i] = false
-                continue
-            end
-            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true)
-            if any(isnan.(lamp_spectra[i]))
-                valid_lenslets[i] = false
-                continue
-            end
-            (; xmin, xmax, ymin, ymax) = profiles[i].bbox
-            lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax)
-            p = profiles[i](lbox)
-            view(model, lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
-            next!(progress)
-        end
-    end
-    ProgressMeter.finish!(progress)
-
+    profiles, lamp_spectra, model, valid_lenslets = refine_lamp_model(
+        valid_lenslets,
+        lamp,
+        profiles,
+        lamp_spectra;
+        calib_params = calib_params
+    )
     return profiles, bboxes, valid_lenslets, lamp_spectra, model
 end
 
@@ -91,20 +69,78 @@ function initialize_profile!(
 
 
     bboxes = fill(BoundingBox{Int}(nothing), NLENS)
-    profiles = Vector{Profile}(undef, NLENS)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
 
 
     @inbounds for i in findall(valid_lenslets)
         bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
         if ismissing(bbox)
             valid_lenslets[i] = false
+            profiles[i] = nothing
         else
             bboxes[i] = bbox
-            profiles[i] = Profile(bbox, lamp_cfwhms_init, vcat(get_meanx(lamp, bbox), zeros(profile_order)))
+            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(get_meanx(lamp, bbox), zeros(profile_order)))
         end
     end
     return bboxes, profiles
 end
+
+function refine_lamp_model(
+        valid_lenslets,
+        lamp,
+        profiles
+        ; calib_params::FastPICParams = FastPICParams()
+    )
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = calib_params.lamp_extract_restrict)
+
+    return refine_lamp_model(valid_lenslets, lamp, profiles, lamp_spectra; calib_params = calib_params)
+end
+
+function refine_lamp_model(
+        valid_lenslets,
+        lamp,
+        profiles,
+        lamp_spectra
+        ; calib_params::FastPICParams = FastPICParams()
+    )
+    @unpack_FastPICParams calib_params
+
+    model = zeros(Float64, size(lamp))
+
+    progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
+
+    for _ in 1:profile_loop
+        res = lamp .- model
+        fill!(model, 0.0)
+        for i in findall(valid_lenslets)
+            resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
+            # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
+
+            profiles[i] = fit_profile(
+                resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
+            )
+            if any(isnan.(profiles[i].cfwhm))
+                valid_lenslets[i] = false
+                profiles[i] = nothing
+                continue
+            end
+            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true)
+            if any(isnan.(lamp_spectra[i]))
+                valid_lenslets[i] = false
+                profiles[i] = nothing
+                continue
+            end
+            (; xmin, xmax, ymin, ymax) = profiles[i].bbox
+            lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax)
+            p = profiles[i](lbox)
+            view(model, lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
+            next!(progress)
+        end
+    end
+    ProgressMeter.finish!(progress)
+    return profiles, lamp_spectra, model, valid_lenslets
+end
+
 
 function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
     if relative
@@ -120,7 +156,7 @@ end
 
 function fit_profile(
         data::WeightedArray{T, N},
-        profile::Profile{M};
+        profile::Profile{T, M};
         maxeval = 10_000,
         verbose = false,
         relative = false

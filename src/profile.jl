@@ -1,20 +1,39 @@
-struct Profile{N}
+struct Profile{T, N}
+    type::Type{T}
     bbox::BoundingBox{Int64}
     ycenter::Float64
     cfwhm::Array{Float64, N}
     cx::Vector{Float64}
+    function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector) where {N, T2 <: Real}
+        @assert T <: Real
+        size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
+        length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
+        return new{T, N}(T, bbox, ycenter, Array{Float64, N}(cfwhm), collect(cx))
+    end
 end
 
 Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
     Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
 
-((; bbox, ycenter, cfwhm, cx)::Profile)() = get_profile(bbox, ycenter, cfwhm, cx)
+Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
+    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx)
+
+Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
 
 
-((; bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}) = get_profile(bbox2, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)() = get_profile(type, bbox, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}) where {T2} = get_profile(T2, bbox, ycenter, cfwhm, cx)
 
-function get_profile(bbox::BoundingBox{Int64}, ycenter::Float64, cfwhm::Array{Float64, N}, cx::Vector{Float64}) where {N}
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}) =
+    get_profile(type, bbox2, ycenter, cfwhm, cx)
 
+function get_profile(
+        type::Type{T},
+        bbox::BoundingBox{Int64},
+        ycenter::Float64,
+        cfwhm::Array{Float64, N},
+        cx::Vector{Float64}
+    ) where {N, T}
 
     xorder = length(cx)
     fwhmorder = size(cfwhm, 1)
@@ -29,11 +48,10 @@ function get_profile(bbox::BoundingBox{Int64}, ycenter::Float64, cfwhm::Array{Fl
     width = ypo[:, 1:fwhmorder] * cfwhm
 
     fwhm2sigma = 1 / (2 * sqrt(2 * log(2)))
-    fw = @. -1 / (2 * (width * fwhm2sigma)^2)
+    fw = @. T(-1 / (2 * (width * fwhm2sigma)^2))
 
-    xc = (ax .- xcenter')
+    xc = T.(ax .- xcenter')
     if N == 1
-        xc = (ax .- xcenter')
         dist = (xc .^ 2) .* reshape(fw, 1, :)
     elseif N == 2
         dist = min.(xc, 0) .^ 2 .* reshape(fw[:, 1], 1, :) .+ max.(xc, 0) .^ 2 .* reshape(fw[:, 2], 1, :)
@@ -68,11 +86,11 @@ end
 
 function extract_spectrum(
         data::WeightedArray{T, N},
-        profile::Profile;
-        restrict = 0.01,
+        profile::Profile{T2, M};
+        restrict = T2(0.01),
         nonnegative = false,
         inbbox = false
-    ) where {T, N}
+    ) where {T, N, T2, M}
     bbox = profile.bbox
     if inbbox
         (; value, precision) = data
@@ -84,8 +102,9 @@ function extract_spectrum(
         end
     end
     model = profile()
+
     if restrict > 0
-        model .*= (model .> restrict)
+        model .*= (model .> T2(restrict))
     end
 
     αprecision = dropdims(sum(model .^ 2 .* precision, dims = 1), dims = 1)
@@ -106,4 +125,25 @@ get_wavelength(coefs, ref, pixel) = get_wavelength(Val(length(coefs) - 1), Val(l
 function get_wavelength(::Val{order}, ::Val{len}, coefs, ref, pixel) where {order, len}
     fullA = SMatrix{len, order + 1}(((pixel .- ref) ./ ref) .^ reshape(0:order, 1, :))
     return fullA * coefs
+end
+
+function extract_spectra(
+        data::WeightedArray{T, N},
+        profiles;
+        restrict = T(0.01),
+        nonnegative::Bool = false,
+        multi_thread::Bool = true
+    ) where {T, N}
+    N <= 2 || error("extract_spectra: data must have at least 2 dimensions")
+    valid_lenslets = map(!isnothing, profiles)
+    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
+    spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
+    fill!(spectra, nothing)
+    #Threads.@threads for i in findall(valid_lenslets)
+    # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
+    _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
+    _foreach(findall(valid_lenslets)) do i
+        spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
+    end
+    return spectra
 end
