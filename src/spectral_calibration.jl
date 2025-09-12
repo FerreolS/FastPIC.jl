@@ -111,7 +111,7 @@ function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets)
     diagA[1] = 1
     diagA[end] = 1
     A = Array(BandedMatrix((0 => diagA, 1 => -1 * ones(nλ - 1), -1 => -1 * ones(nλ - 1)), (nλ, nλ)))
-
+    # TO BE FIXED : ADD TIKHONOV PARAMETER AS INPUT
     b = zeros(Float64, nλ)
     foreach(findall(valid_lenslets)) do idx
         (; value, precision) = spectra[idx]
@@ -173,7 +173,7 @@ function recalibrate_wavelengths(
         lasers_model,
         reference_pixel,
         valid_lenslets;
-        loop = 2
+        loop = 2 # TODO put in calib_params
     )
 
     template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_profile, valid_lenslets)
@@ -192,7 +192,7 @@ function recalibrate_wavelengths(
             try
                 new_coefs[i] = spectral_refinement(coef, lamp_profile[i], template, λ, reference_pixel, lasers_λs, lasers_model[i].fwhm, laser_profile[i])
             catch e
-                @warn "Spectral refinement failed for lenslet $i: $e"
+                @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
             end
             next!(p)
@@ -237,7 +237,7 @@ function spectral_calibration(
             valid_lenslets[i] = false
         else
             try
-                laser_profile[i] = extract_model(lasers, profiles[i])
+                laser_profile[i] = extract_spectrum(lasers, profiles[i])
                 las[i] = fit_laser(laser_profile[i], laser_model)
 
                 if std(las[i].position .- laser_model.position) > 1
