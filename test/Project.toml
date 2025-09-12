@@ -4,3 +4,6 @@ LazyArtifacts = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 WeightedData = "198d7fc6-4dbd-4d01-be45-be9677e11b0d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+WeightedData = {url = "https://github.com/FerreolS/WeightedData.jl"}
