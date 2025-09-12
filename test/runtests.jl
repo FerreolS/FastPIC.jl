@@ -7,7 +7,7 @@ using LazyArtifacts
         # Replace "test_data" with the actual artifact name
         test_data_path = artifact"calibrationtestdata"
 
-        @test isdir(test_data_path)
+       # test_data_path = "test/Data/"
         files = joinpath.(test_data_path, ("wave.fits", "specpos.fits"))
 
         using StatsBase
@@ -20,9 +20,11 @@ using LazyArtifacts
         nλ = 3
 
         wave = openfits(files[1])
+        # wave = openfits("test/Data/wave.fits")
         lasers = WeightedArray(read(wave[1])[:, :, 1], read(wave[2])[:, :, 1])
         close(wave)
         specpos = openfits(files[2])
+        #specpos = openfits("test/Data//specpos.fits")
         lamp = WeightedArray(read(specpos[1])[:, :, 1], read(specpos[2])[:, :, 1])
         close(specpos)
 
