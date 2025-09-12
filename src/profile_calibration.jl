@@ -20,7 +20,7 @@ function calibrate_profile(
     profile_type = ZippedVector{WeightedValue{Float64}, 2, true, Tuple{Vector{Float64}, Vector{Float64}}}
     lamp_spectra = Vector{profile_type}(undef, NLENS)
 
-    progress = Progress(sum(valid_lenslets); showspeed = true)
+    progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
     #Threads.@threads for i in findall(valid_lenslets)
     # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
     _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
@@ -47,7 +47,7 @@ function calibrate_profile(
 
     model = zeros(Float64, size(lamp))
 
-    progress = Progress(sum(valid_lenslets) .* profile_loop; showspeed = true)
+    progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
 
     for _ in 1:profile_loop
         res = lamp .- model
@@ -63,7 +63,7 @@ function calibrate_profile(
                 valid_lenslets[i] = false
                 continue
             end
-            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; relative = true)
+            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true)
             if any(isnan.(lamp_spectra[i]))
                 valid_lenslets[i] = false
                 continue
