@@ -41,7 +41,7 @@ StaticArrays = "1"
 StatsBase = "0.34"
 Test = "1"
 TwoDimensional = "0.5"
-WeightedData = *
+WeightedData = "0"
 ZippedArrays = "0.2"
 julia = "1.10"
 
