@@ -8,7 +8,7 @@
 end
 
 
-@with_kw struct FastPICParams{R <: Real, Q}
+@with_kw struct FastPICParams{R <: Real}
     @deftype R
     nλ::Int = 3
     @assert (nλ == 3 || nλ == 4)
@@ -25,10 +25,10 @@ end
     @assert all(isfinite.(lasers_cxy0s_init))
 
     # Profile Calibration parameters
-    profile_order::Int = 2
+    profile_order::Int = 3
     @assert profile_order ≥ 1
-    extra_width::Int = 2
-    profile_loop::Int = 2
+    extra_width::Int = 2 # extra width around bbox to consider neighboring lenslets when refining the model
+    profile_loop::Int = 2 # number of outer loop of profile refinement
     lamp_cfwhms_init::VecOrMat{R} = vcat(2.5, zeros(profile_order))
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false

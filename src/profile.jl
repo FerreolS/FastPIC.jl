@@ -71,10 +71,10 @@ function extract_spectrum(
         profile::Profile;
         restrict = 0.01,
         nonnegative = false,
-        boxed = false
+        inbbox = false
     ) where {T, N}
     bbox = profile.bbox
-    if boxed
+    if inbbox
         (; value, precision) = data
     else
         if N > 2
