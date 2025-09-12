@@ -7,7 +7,7 @@ using LazyArtifacts
         # Replace "test_data" with the actual artifact name
         test_data_path = artifact"calibrationtestdata"
 
-       # test_data_path = "test/Data/"
+        # test_data_path = "test/Data/"
         files = joinpath.(test_data_path, ("wave.fits", "specpos.fits"))
 
         using StatsBase
@@ -36,7 +36,7 @@ using LazyArtifacts
         valid_lenslets .= false
         valid_lenslets[test_indices] .= true
         calib_params = FastPICParams(; nλ = nλ)
-        profiles, bboxes, valid_lenslets, lamp_spectra, model = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
+        profiles, bboxes, lamp_spectra, model = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     end
     # Write your tests here.
 end
