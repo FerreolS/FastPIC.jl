@@ -210,23 +210,25 @@ end
 function spectral_calibration(
         lasers,
         lamp_spectra,
-        profiles;
+        profiles::AbstractVector{Union{Nothing, Profile{T, N}}};
         valid_lenslets = trues(length(profiles)),
         calib_params::FastPICParams = FastPICParams(),
         loop = 2,
         superres = 1,
         final_spectral_order = 3
-    )
+    ) where {T, N}
 
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
-    profile_type = ZippedVector{WeightedValue{Float64}, 2, true, Tuple{Vector{Float64}, Vector{Float64}}}
+    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
     laser_profile = Vector{profile_type}(undef, NLENS)
     laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
     coefs = Vector{Vector{Float64}}(undef, NLENS)
     λ = Vector{Vector{Float64}}(undef, NLENS)
     las = Vector{typeof(laser_model)}(undef, NLENS)
+
+    valid_lenslets = map(!isnothing, profiles)
 
     #Threads.@threads for i in findall(valid_lenslets)
     # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
@@ -257,7 +259,7 @@ function spectral_calibration(
                 λ[i] = get_wavelength(coefs[i], reference_pixel, axes(laser_profile[i], 1))
 
             catch e
-                @debug "Error on lenslet $i" exception = e
+                @debug "Error on lenslet $i" exception = (e, catch_backtrace())
                 valid_lenslets[i] = false
             end
         end
