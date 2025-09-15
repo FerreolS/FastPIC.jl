@@ -206,23 +206,21 @@ function recalibrate_wavelengths(
     return coefs, template, transmission
 end
 
-
 function spectral_calibration(
-        lasers,
-        lamp_spectra,
-        profiles::AbstractVector{Union{Nothing, Profile{T, N}}};
-        valid_lenslets = trues(length(profiles)),
+        lasers::WeightedArray{T, 2},
+        lamp_spectra::Vector{L},
+        profiles::AbstractVector{<:Union{Nothing, Profile}};
         calib_params::FastPICParams = FastPICParams(),
         loop = 2,
         superres = 1,
         final_spectral_order = 3
-    ) where {T, N}
+    ) where {T, L <: Union{Nothing, WeightedArray{T, 1}}}
 
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
-    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
-    laser_profile = Vector{profile_type}(undef, NLENS)
+    # profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
+    laser_profile = Vector{L}(undef, NLENS)
     laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
     coefs = Vector{Vector{Float64}}(undef, NLENS)
     λ = Vector{Vector{Float64}}(undef, NLENS)
