@@ -33,7 +33,8 @@ end
     lamp_cfwhms_init::VecOrMat{R} = vcat(2.5, zeros(profile_order))
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
-    lamp_extract_restrict::R = 0.01 # minimum relative amplitude of the profile to consider when extracting the spectrum
+    refine_profile_verbose::Bool = false
+    lamp_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
 
 
     # Spectral calibration parameters

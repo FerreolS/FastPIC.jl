@@ -32,7 +32,6 @@ function calibrate_profile(
             profiles[i] = nothing
         else
             try
-
                 profiles[i] = fit_profile(lamp, profiles[i]; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
                 if any(isnan.(profiles[i].cfwhm))
                     throw("NaN found in profile for lenslet $i")
@@ -52,7 +51,12 @@ function calibrate_profile(
         lamp,
         profiles,
         lamp_spectra;
-        calib_params = calib_params
+        lamp_extract_restrict = lamp_extract_restrict,
+        extra_width = extra_width,
+        profile_loop = profile_loop,
+        fit_profile_maxeval = fit_profile_maxeval,
+        verbose = refine_profile_verbose,
+        fit_profile_verbose = fit_profile_verbose
     )
     return profiles, bboxes, lamp_spectra, model
 end
@@ -86,34 +90,49 @@ end
 
 function refine_lamp_model(
         lamp,
-        profiles
-        ; calib_params::FastPICParams = FastPICParams()
+        profiles,
+        ; lamp_extract_restrict = 0,
+        kwargs...
     )
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = calib_params.lamp_extract_restrict)
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict)
 
-    return refine_lamp_model(lamp, profiles, lamp_spectra; calib_params = calib_params)
+    return refine_lamp_model(lamp, profiles, lamp_spectra; lamp_extract_restrict = lamp_extract_restrict, kwargs...)
 end
 
 function refine_lamp_model(
         lamp::WeightedArray{T, 2},
         profiles,
         lamp_spectra
-        ; calib_params::FastPICParams = FastPICParams()
+        ; fit_profile_maxeval = 10_000,
+        verbose::Bool = false,
+        profile_loop::Int = 2,
+        extra_width::Int = 2,
+        lamp_extract_restrict = 0,
+        keep_loop::Bool = false,
+        fit_profile_verbose::Bool = false
     ) where {T}
-    @unpack_FastPICParams calib_params
 
-    model = zeros(T, size(lamp))
+    detectorbbox = BoundingBox(axes(lamp))
 
+    model = keep_loop ? zeros(T, size(lamp)..., profile_loop) : zeros(T, size(lamp))
     valid_lenslets = map(!isnothing, profiles)
-    progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true)
+    verbose && (progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true))
 
-    for _ in 1:profile_loop
-        res = lamp .- model
-        fill!(model, 0.0)
+    for l in 1:profile_loop
+        if l == 1
+            res = lamp
+        else
+            res = lamp .- (keep_loop ? view(model, :, :, l - 1) : model)
+        end
+        keep_loop || fill!(model, 0.0)
         for i in findall(valid_lenslets)
-            resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
-            # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-
+            if l == 1
+                resi = view(res, profiles[i].bbox)
+                # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
+            else
+                resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
+                # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
+            end
             profiles[i] = fit_profile(
                 resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
             )
@@ -121,19 +140,28 @@ function refine_lamp_model(
                 profiles[i] = nothing
                 continue
             end
-            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true)
+            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
             if any(isnan.(lamp_spectra[i]))
                 profiles[i] = nothing
                 continue
             end
             (; xmin, xmax, ymin, ymax) = profiles[i].bbox
-            lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax)
+            lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
             p = profiles[i](lbox)
-            view(model, lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
-            next!(progress)
+            if !any(isnan.(p))
+                if keep_loop
+                    view(view(model, :, :, l), lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
+                else
+                    view(model, lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
+                end
+            end
+            verbose && next!(progress)
         end
+
+        valid_lenslets = map(!isnothing, profiles)
+
     end
-    ProgressMeter.finish!(progress)
+    verbose && ProgressMeter.finish!(progress)
     return profiles, lamp_spectra, model
 end
 
@@ -152,20 +180,19 @@ end
 
 function fit_profile(
         data::WeightedArray{T, N},
-        profile::Profile{T, M};
+        profile::Profile{T2, M};
         maxeval = 10_000,
         verbose = false,
         relative = false
-    ) where {T, N, M}
+    ) where {T, T2, N, M}
 
     fwhmorder = size(profile.cfwhm, 1)
     cxorder = length(profile.cx)
     if M == 1
         scale = vcat(10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(cxorder))))
     else
-        scale = vcat(10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(cxorder))), 10.0 .^ (-(1:(cxorder))))
+        scale = vcat(10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(cxorder))))
     end
-
     vec, re = Optimisers.destructure(profile)
 
     d = relative ? data : view(data, profile.bbox)
