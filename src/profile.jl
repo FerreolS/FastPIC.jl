@@ -8,7 +8,7 @@ struct Profile{T, N}
         @assert T <: Real
         size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
         length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
-        return new{T, N}(T, bbox, ycenter, Array{Float64, N}(cfwhm), collect(cx))
+        return new{T, N}(T, bbox, ycenter, collect(cfwhm), collect(cx))
     end
 end
 
@@ -28,7 +28,7 @@ Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
     get_profile(type, bbox2, ycenter, cfwhm, cx)
 
 function get_profile(
-        type::Type{T},
+        ::Type{T},
         bbox::BoundingBox{Int64},
         ycenter::Float64,
         cfwhm::Array{Float64, N},
@@ -87,7 +87,7 @@ end
 function extract_spectrum(
         data::WeightedArray{T, N},
         profile::Profile{T2, M};
-        restrict = T2(0.01),
+        restrict = 0,
         nonnegative = false,
         inbbox = false
     ) where {T, N, T2, M}
@@ -129,14 +129,14 @@ end
 
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles;
+        profiles::Vector{Union{Profile{T2, M}, Nothing}};
         restrict = T(0.01),
         nonnegative::Bool = false,
         multi_thread::Bool = true
-    ) where {T, N}
+    ) where {T, N, T2, M}
     N <= 2 || error("extract_spectra: data must have at least 2 dimensions")
     valid_lenslets = map(!isnothing, profiles)
-    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
+    profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
     fill!(spectra, nothing)
     #Threads.@threads for i in findall(valid_lenslets)
