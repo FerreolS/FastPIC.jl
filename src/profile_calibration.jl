@@ -109,7 +109,8 @@ function refine_lamp_model(
         extra_width::Int = 2,
         lamp_extract_restrict = 0,
         keep_loop::Bool = false,
-        fit_profile_verbose::Bool = false
+        fit_profile_verbose::Bool = false,
+        ntasks = Threads.nthreads()
     ) where {T}
 
     detectorbbox = BoundingBox(axes(lamp))
@@ -125,39 +126,51 @@ function refine_lamp_model(
             res = lamp .- (keep_loop ? view(model, :, :, l - 1) : model)
         end
         keep_loop || fill!(model, 0.0)
-        for i in findall(valid_lenslets)
-            if l == 1
-                resi = view(res, profiles[i].bbox)
-                # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-            else
-                resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
-                # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-            end
-            profiles[i] = fit_profile(
-                resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
-            )
-            if any(isnan.(profiles[i].cfwhm))
-                profiles[i] = nothing
-                continue
-            end
-            lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
-            if any(isnan.(lamp_spectra[i]))
-                profiles[i] = nothing
-                continue
-            end
-            (; xmin, xmax, ymin, ymax) = profiles[i].bbox
-            lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
-            p = profiles[i](lbox)
-            if !any(isnan.(p))
-                if keep_loop
-                    view(view(model, :, :, l), lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
-                else
-                    view(model, lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
-                end
-            end
-            verbose && next!(progress)
-        end
+        partial_model = [zeros(T, size(lamp)) for _ in 1:ntasks]
+        Threads.@threads for (ichunk, chunk) in enumerate(chunks(findall(valid_lenslets); n = ntasks))
 
+            for i in chunk
+                if l == 1
+                    resi = view(res, profiles[i].bbox)
+                    # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
+                else
+                    resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
+                    # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
+                end
+                profiles[i] = fit_profile(
+                    resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
+                )
+                if any(isnan.(profiles[i].cfwhm))
+                    profiles[i] = nothing
+                    continue
+                end
+                lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
+                if any(isnan.(lamp_spectra[i]))
+                    profiles[i] = nothing
+                    continue
+                end
+                (; xmin, xmax, ymin, ymax) = profiles[i].bbox
+                lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
+                p = profiles[i](lbox)
+                if any(map(!isfinite, p))
+                    profiles[i] = nothing
+                    continue
+                end
+
+                view(partial_model[ichunk], lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
+
+                verbose && next!(progress)
+            end
+        end
+        if keep_loop
+            for pm in partial_model
+                view(model, :, :, l) .+= pm
+            end
+        else
+            for pm in partial_model
+                model .+= pm
+            end
+        end
         valid_lenslets = map(!isnothing, profiles)
 
     end
