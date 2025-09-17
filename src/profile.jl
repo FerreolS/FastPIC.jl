@@ -129,12 +129,12 @@ end
 
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::Vector{Union{Profile{T2, M}, Nothing}};
-        restrict = T(0.01),
+        profiles::Vector{Union{Nothing, Profile{T2, <:Int}}};  # allow any M
+        restrict = 0,
         nonnegative::Bool = false,
         multi_thread::Bool = true
-    ) where {T, N, T2, M}
-    N <= 2 || error("extract_spectra: data must have at least 2 dimensions")
+    ) where {T <: Real, N <: Int, T2 <: Real}
+    (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     valid_lenslets = map(!isnothing, profiles)
     profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
