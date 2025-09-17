@@ -43,24 +43,42 @@ function get_profile(
     ax, ay = axes(bbox)
     ypo = ((ay .- ycenter)) .^ reshape(0:order, 1, order + 1)
 
-    xcenter = ypo[:, 1:xorder] * cx
+    xcenter = view(ypo, :, 1:xorder) * cx
 
-    width = ypo[:, 1:fwhmorder] * cfwhm
+    width = view(ypo, :, 1:fwhmorder) * cfwhm
 
-    fwhm2sigma = 1 / (2 * sqrt(2 * log(2)))
-    fw = @. T(-1 / (2 * (width * fwhm2sigma)^2))
+    fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
 
-    xc = T.(ax .- xcenter')
-    if N == 1
-        dist = (xc .^ 2) .* reshape(fw, 1, :)
-    elseif N == 2
-        dist = min.(xc, 0) .^ 2 .* reshape(fw[:, 1], 1, :) .+ max.(xc, 0) .^ 2 .* reshape(fw[:, 2], 1, :)
+    if false
+        fw = @. T(-1 / (2 * (width^2) * fwhm2sigma2))
+        xc = T.(ax .- xcenter')
+        if N == 1
+            dist = (xc .^ 2) .* reshape(fw, 1, :)
+        elseif N == 2
+            dist = min.(xc, 0) .^ 2 .* reshape(fw[:, 1], 1, :) .+ max.(xc, 0) .^ 2 .* reshape(fw[:, 2], 1, :)
+        else
+            error("get_profile : N must be 1 or 2")
+        end
+
+
+        img = exp.(dist)
     else
-        error("get_profile : N must be 1 or 2")
+        img = zeros(T, size(bbox)...)
+
+        @inbounds @simd for j in axes(img, 2) #40
+            for i in axes(img, 1) #5
+                d = (ax[i] - xcenter[j])
+                if N == 1
+                    dist = T(-d^2 / (2 * (width[j]^2 * fwhm2sigma2)))
+                elseif N == 2
+                    dist = T(- d^2 / (2 * (width[j, ifelse(d < 0, 1, 2)]^2 * fwhm2sigma2)))
+                else
+                    error("get_profile : N must be 1 or 2")
+                end
+                img[i, j] = exp(dist)
+            end
+        end
     end
-
-
-    img = exp.(dist)
     return img #./ sum(img; dims=1)
 end
 
@@ -129,11 +147,12 @@ end
 
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::Vector{Union{Nothing, Profile{T2, <:Int}}};  # allow any M
+        profiles::Vector{Union{Profile{T2, M}, Nothing}};
         restrict = 0,
         nonnegative::Bool = false,
         multi_thread::Bool = true
-    ) where {T <: Real, N <: Int, T2 <: Real}
+    ) where {T <: Real, N, T2 <: Real, M}
+
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     valid_lenslets = map(!isnothing, profiles)
     profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
