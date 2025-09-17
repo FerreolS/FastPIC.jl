@@ -237,7 +237,7 @@ function spectral_calibration(
             valid_lenslets[i] = false
         else
             try
-                laser_profile[i] = extract_spectrum(lasers, profiles[i])
+                laser_profile[i] = extract_spectrum(lasers, profiles[i]; restrict = laser_extract_restrict)
                 las[i] = fit_laser(laser_profile[i], laser_model)
 
                 if std(las[i].position .- laser_model.position) > 1
@@ -248,8 +248,7 @@ function spectral_calibration(
                     throw("W singular  for lenslet $i")
                 end
                 coefs[i] = spectral_calibration(
-                    spectral_initial_order
-                    , reference_pixel, lasers_λs, las[i].position, W
+                    spectral_initial_order, reference_pixel, lasers_λs, las[i].position, W
                 )
                 if any(isnan.(coefs[i]))
                     throw("NaN found in coefs for lenslet $i")
