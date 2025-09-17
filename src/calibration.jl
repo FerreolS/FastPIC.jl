@@ -43,6 +43,8 @@ end
     spectral_final_order::Int = 3
     @assert spectral_final_order ≥ spectral_initial_order
     lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
+    laser_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
+
 
     multi_thread::Bool = true
 end
