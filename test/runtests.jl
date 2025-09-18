@@ -37,7 +37,7 @@ using LazyArtifacts
         valid_lenslets[test_indices] .= true
         calib_params = FastPICParams(; nλ = nλ)
         profiles, bboxes, lamp_spectra, model = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
-        coefs, template, transmission, lλ, las, laser_profile, valid_lenslets = FastPIC.spectral_calibration(lasers, lamp_spectra, profiles; superres = 2)
+        coefs, template, transmission, lλ, las, laser_profile, valid_lenslets = FastPIC.spectral_calibration(lasers, lamp_spectra, profiles)
     end
     # Write your tests here.
 end

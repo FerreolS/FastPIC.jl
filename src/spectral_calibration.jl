@@ -78,9 +78,9 @@ function get_laser_precision(
     return W
 end
 
-spectral_calibration(order, ref, lasers_λs, laser_positions, Wpos) = spectral_calibration(Val(order), Val(length(laser_positions)), ref, lasers_λs, laser_positions, Wpos)
+laser_calibration(order, ref, lasers_λs, laser_positions, Wpos) = laser_calibration(Val(order), Val(length(laser_positions)), ref, lasers_λs, laser_positions, Wpos)
 
-function spectral_calibration(::Val{order}, ::Val{lines}, ref, lasers_λs, laser_positions, Wpos) where {order, lines}
+function laser_calibration(::Val{order}, ::Val{lines}, ref, lasers_λs, laser_positions, Wpos) where {order, lines}
     A = MMatrix{lines, order + 1}(((laser_positions .- ref) ./ ref) .^ reshape(0:order, 1, :))
     coefs = inv(A' * Wpos * A) * A' * Wpos * lasers_λs
     return coefs
@@ -163,6 +163,7 @@ function spectral_refinement(coefs, lamp, lamp_template, wavelength, reference_p
     Newuoa.optimize!(loss, coefs, 1, 1.0e-9; scale = scale, check = false, maxeval = 10_000, verbose = 0)
     return coefs
 end
+
 function recalibrate_wavelengths(
         λ,
         coefs,
@@ -173,6 +174,7 @@ function recalibrate_wavelengths(
         lasers_model,
         reference_pixel,
         valid_lenslets;
+        verbose = false,
         loop = 2 # TODO put in calib_params
     )
 
@@ -180,10 +182,10 @@ function recalibrate_wavelengths(
 
     new_coefs = similar(coefs)
 
-    p = Progress(sum(valid_lenslets) * loop; showspeed = true)
+    progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
 
     for _ in 1:loop
-        @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets)) do i
+        @localize progressbar @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets)) do i
             if (order + 1) > length(coefs[i])
                 coef = vcat(coefs[i], zeros(order - length(coefs[i]) + 1))
             else
@@ -195,14 +197,14 @@ function recalibrate_wavelengths(
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
             end
-            next!(p)
+            verbose && next!(progressbar)
         end
         coefs = copy(new_coefs)
 
         template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_profile, valid_lenslets)
 
     end
-    ProgressMeter.finish!(p)
+    verbose && (finish!(progressbar))
     return coefs, template, transmission
 end
 
@@ -210,10 +212,7 @@ function spectral_calibration(
         lasers::WeightedArray{T, 2},
         lamp_spectra::Vector{L},
         profiles::AbstractVector{<:Union{Nothing, Profile}};
-        calib_params::FastPICParams = FastPICParams(),
-        loop = 2,
-        superres = 1,
-        final_spectral_order = 3
+        calib_params::FastPICParams = FastPICParams()
     ) where {T, L <: Union{Nothing, WeightedArray{T, 1}}}
 
     @unpack_FastPICParams calib_params
@@ -230,9 +229,10 @@ function spectral_calibration(
 
     #Threads.@threads for i in findall(valid_lenslets)
     # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
-    _foreach = multi_thread ? (@localize coefs OhMyThreads.tforeach) : Base.foreach
-    progress = Progress(sum(valid_lenslets); showspeed = true)
-    @localize coefs _foreach(findall(valid_lenslets)) do i
+    progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
+
+    _foreach = multi_thread ? (@allow_boxed_captures OhMyThreads.tforeach) : Base.foreach
+    @allow_boxed_captures _foreach(findall(valid_lenslets)) do i
         if sum(view(lasers, profiles[i].bbox).precision) == 0
             valid_lenslets[i] = false
         else
@@ -247,7 +247,7 @@ function spectral_calibration(
                 if any(diag(W) .< 1.0e-4)
                     throw("W singular  for lenslet $i")
                 end
-                coefs[i] = spectral_calibration(
+                coefs[i] = laser_calibration(
                     spectral_initial_order, reference_pixel, lasers_λs, las[i].position, W
                 )
                 if any(isnan.(coefs[i]))
@@ -258,24 +258,25 @@ function spectral_calibration(
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
                 valid_lenslets[i] = false
+                profiles[i] = nothing
             end
         end
-        next!(progress)
+        spectral_calibration_verbose && next!(progressbar)
     end
-    finish!(progress)
-    lλ = build_λrange(λ, valid_lenslets; superres = superres)
+    spectral_calibration_verbose && finish!(progressbar)
+    lλ = build_λrange(λ, valid_lenslets; superres = spectral_superres)
 
     coefs, template, transmission = recalibrate_wavelengths(
         lλ,
         coefs,
-        final_spectral_order,
+        spectral_final_order,
         lamp_spectra,
         laser_profile,
         lasers_λs,
         las,
         reference_pixel,
         valid_lenslets;
-        loop = loop
+        loop = spectral_recalibration_loop
     )
     return coefs, template, transmission, lλ, las, laser_profile, valid_lenslets
 end
