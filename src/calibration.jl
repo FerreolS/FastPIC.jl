@@ -50,5 +50,5 @@ end
     spectral_calibration_verbose::Bool = false
 
 
-    multi_thread::Bool = true
+    ntasks::Int = 4 * Threads.nthreads()
 end

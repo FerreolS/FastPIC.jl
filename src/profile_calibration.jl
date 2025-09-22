@@ -24,10 +24,8 @@ function calibrate_profile(
     valid_lenslets = map(!isnothing, profiles)
 
     progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
-    #Threads.@threads for i in findall(valid_lenslets)
-    # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
-    # _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
-    @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = Threads.nthreads() * 4) do i
+
+    @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
         if isnothing(profiles[i])
             nothing
         elseif sum(view(lamp, bboxes[i]).precision) == 0
@@ -58,7 +56,8 @@ function calibrate_profile(
         profile_loop = profile_loop,
         fit_profile_maxeval = fit_profile_maxeval,
         verbose = refine_profile_verbose,
-        fit_profile_verbose = fit_profile_verbose
+        fit_profile_verbose = fit_profile_verbose,
+        ntasks = ntasks
     )
     return profiles, bboxes, lamp_spectra, model
 end
@@ -94,11 +93,12 @@ function refine_lamp_model(
         lamp,
         profiles,
         ; lamp_extract_restrict = 0,
+        ntasks = 4 * Threads.nthreads(),
         kwargs...
     )
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict)
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict, ntasks = ntasks)
 
-    return refine_lamp_model(lamp, profiles, lamp_spectra; lamp_extract_restrict = lamp_extract_restrict, kwargs...)
+    return refine_lamp_model(lamp, profiles, lamp_spectra; lamp_extract_restrict = lamp_extract_restrict, ntasks = ntasks, kwargs...)
 end
 
 function refine_lamp_model(
@@ -112,7 +112,7 @@ function refine_lamp_model(
         lamp_extract_restrict = 0,
         keep_loop::Bool = false,
         fit_profile_verbose::Bool = false,
-        ntasks = Threads.nthreads()
+        ntasks = 4 * Threads.nthreads()
     ) where {T}
 
     detectorbbox = BoundingBox(axes(lamp))
@@ -133,7 +133,7 @@ function refine_lamp_model(
             res = lamp .- (keep_loop ? view(model, :, :, l - 1) : model)
         end
         keep_loop || fill!(model, 0.0)
-        @localize profiles @localize lamp_spectra @localize res @localize progress  OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = 1) do i
+        @localize profiles @localize lamp_spectra @localize res @localize progress  OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
             if isnothing(profiles[i])
                 nothing
             else
@@ -165,7 +165,7 @@ function refine_lamp_model(
 
                     pr = p .* reshape(lamp_spectra[i].value, 1, :)
                     bbox_indices = keep_loop ? view(model_indices, CartesianIndices(lbox), l) : view(model_indices, CartesianIndices(lbox))
-                    for (k, idx) in enumerate(bbox_indices)
+                    @inbounds for (k, idx) in enumerate(bbox_indices)
                         # e.g. Atomically accumulate into the flat `model_view`
                         Atomix.@atomic model_view[idx] += pr[k]
                     end

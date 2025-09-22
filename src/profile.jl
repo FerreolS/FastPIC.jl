@@ -150,7 +150,7 @@ function extract_spectra(
         profiles::Vector{Union{Profile{T2, M}, Nothing}};
         restrict = 0,
         nonnegative::Bool = false,
-        multi_thread::Bool = true
+        ntasks = 4 * Threads.nthreads()
     ) where {T <: Real, N, T2 <: Real, M}
 
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
@@ -158,10 +158,7 @@ function extract_spectra(
     profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
     fill!(spectra, nothing)
-    #Threads.@threads for i in findall(valid_lenslets)
-    # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
-    _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
-    _foreach(findall(valid_lenslets)) do i
+    tforeach(findall(valid_lenslets); ntasks = ntasks) do i
         spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
     end
     return spectra
