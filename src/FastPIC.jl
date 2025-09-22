@@ -1,6 +1,7 @@
 module FastPIC
 
-using BandedMatrices,
+using Atomix,
+    BandedMatrices,
     ChunkSplitters,
     ConcreteStructs,
     DelimitedFiles,

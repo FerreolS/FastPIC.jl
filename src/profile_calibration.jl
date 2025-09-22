@@ -26,9 +26,11 @@ function calibrate_profile(
     progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
     #Threads.@threads for i in findall(valid_lenslets)
     # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
-    _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
-    @allow_boxed_captures _foreach(findall(valid_lenslets)) do i
-        if sum(view(lamp, bboxes[i]).precision) == 0
+    # _foreach = multi_thread ? OhMyThreads.tforeach : Base.foreach
+    @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = Threads.nthreads() * 4) do i
+        if isnothing(profiles[i])
+            nothing
+        elseif sum(view(lamp, bboxes[i]).precision) == 0
             profiles[i] = nothing
         else
             try
@@ -39,7 +41,7 @@ function calibrate_profile(
                 lamp_spectra[i] = extract_spectrum(lamp, profiles[i]; restrict = lamp_extract_restrict, nonnegative = true)
 
             catch e
-                @debug "Error on lenslet $i" exception = (e, catch_backtrace())
+                @debug "Error on lenslet $i" exception = e
                 profiles[i] = nothing
             end
         end
@@ -116,7 +118,12 @@ function refine_lamp_model(
     detectorbbox = BoundingBox(axes(lamp))
 
     model = keep_loop ? zeros(T, size(lamp)..., profile_loop) : zeros(T, size(lamp))
+    model_indices = LinearIndices(model)
+
+    model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
+
     valid_lenslets = map(!isnothing, profiles)
+    progress = nothing
     verbose && (progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true))
 
     for l in 1:profile_loop
@@ -126,51 +133,54 @@ function refine_lamp_model(
             res = lamp .- (keep_loop ? view(model, :, :, l - 1) : model)
         end
         keep_loop || fill!(model, 0.0)
-        partial_model = [zeros(T, size(lamp)) for _ in 1:ntasks]
-        Threads.@threads for (ichunk, chunk) in enumerate(chunks(findall(valid_lenslets); n = ntasks))
+        @localize profiles @localize lamp_spectra @localize res @localize progress  OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = 1) do i
+            if isnothing(profiles[i])
+                nothing
+            else
+                try
+                    if l == 1
+                        resi = view(res, profiles[i].bbox)
+                    else
+                        resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
+                    end
+                    profiles[i] = fit_profile(
+                        resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
+                    )
+                    if any(isnan.(profiles[i].cfwhm))
+                        profiles[i] = nothing
+                        error("NaN found in cfwhm for lenslet $i")
+                    end
+                    lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
+                    if any(isnan.(lamp_spectra[i]))
+                        profiles[i] = nothing
+                        error("NaN found in lamp spectrum for lenslet $i")
+                    end
+                    (; xmin, xmax, ymin, ymax) = profiles[i].bbox
+                    lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
+                    p = profiles[i](lbox)
+                    if any(map(!isfinite, p))
+                        profiles[i] = nothing
+                        error("NaN found in profile for lenslet $i")
+                    end
 
-            for i in chunk
-                if l == 1
-                    resi = view(res, profiles[i].bbox)
-                    # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-                else
-                    resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
-                    # resi = view(res,profiles[i].bbox) .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :)
-                end
-                profiles[i] = fit_profile(
-                    resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
-                )
-                if any(isnan.(profiles[i].cfwhm))
-                    profiles[i] = nothing
-                    continue
-                end
-                lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
-                if any(isnan.(lamp_spectra[i]))
-                    profiles[i] = nothing
-                    continue
-                end
-                (; xmin, xmax, ymin, ymax) = profiles[i].bbox
-                lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
-                p = profiles[i](lbox)
-                if any(map(!isfinite, p))
-                    profiles[i] = nothing
-                    continue
-                end
+                    pr = p .* reshape(lamp_spectra[i].value, 1, :)
+                    bbox_indices = keep_loop ? view(model_indices, CartesianIndices(lbox), l) : view(model_indices, CartesianIndices(lbox))
+                    for (k, idx) in enumerate(bbox_indices)
+                        # e.g. Atomically accumulate into the flat `model_view`
+                        Atomix.@atomic model_view[idx] += pr[k]
+                    end
 
-                view(partial_model[ichunk], lbox) .+= p .* reshape(lamp_spectra[i].value, 1, :)
-
+                    for k in eachindex(pr)
+                    end
+                catch e
+                    @debug "Error on lenslet $i" exception = e
+                    profiles[i] = nothing
+                    lamp_spectra[i] = nothing
+                end
                 verbose && next!(progress)
             end
         end
-        if keep_loop
-            for pm in partial_model
-                view(model, :, :, l) .+= pm
-            end
-        else
-            for pm in partial_model
-                model .+= pm
-            end
-        end
+
         valid_lenslets = map(!isnothing, profiles)
 
     end
