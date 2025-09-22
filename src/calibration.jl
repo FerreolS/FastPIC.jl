@@ -34,7 +34,7 @@ end
     @assert size(lamp_cfwhms_init, 2) ≤ 2
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
-    refine_profile_verbose::Bool = false
+    refine_profile_verbose::Bool = true
     lamp_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
 
 
@@ -47,7 +47,7 @@ end
     laser_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
-    spectral_calibration_verbose::Bool = false
+    spectral_calibration_verbose::Bool = true
 
 
     ntasks::Int = 4 * Threads.nthreads()

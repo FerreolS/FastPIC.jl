@@ -175,6 +175,7 @@ function recalibrate_wavelengths(
         reference_pixel,
         valid_lenslets;
         verbose = false,
+        ntasks = Threads.nthreads() * 4,
         loop = 2 # TODO put in calib_params
     )
 
@@ -185,7 +186,7 @@ function recalibrate_wavelengths(
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
 
     for _ in 1:loop
-        @localize progressbar @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets)) do i
+        @localize progressbar @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets); ntasks = ntasks) do i
             if (order + 1) > length(coefs[i])
                 coef = vcat(coefs[i], zeros(order - length(coefs[i]) + 1))
             else
@@ -218,7 +219,6 @@ function spectral_calibration(
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
-    # profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
     laser_profile = Vector{L}(undef, NLENS)
     laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
     coefs = Vector{Vector{Float64}}(undef, NLENS)
@@ -227,12 +227,10 @@ function spectral_calibration(
 
     valid_lenslets = map(!isnothing, profiles)
 
-    #Threads.@threads for i in findall(valid_lenslets)
-    # from https://discourse.julialang.org/t/optionally-multi-threaded-for-loop/81902/8?u=skleinbo
+
     progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
-    _foreach = multi_thread ? (@allow_boxed_captures OhMyThreads.tforeach) : Base.foreach
-    @allow_boxed_captures _foreach(findall(valid_lenslets)) do i
+    @localize profiles @localize laser_profile @localize coefs OhMyThreads.tforeach(findall(valid_lenslets); ntasks = ntasks) do i
         if sum(view(lasers, profiles[i].bbox).precision) == 0
             valid_lenslets[i] = false
         else
@@ -276,7 +274,9 @@ function spectral_calibration(
         las,
         reference_pixel,
         valid_lenslets;
-        loop = spectral_recalibration_loop
+        loop = spectral_recalibration_loop,
+        ntasks = ntasks,
+        verbose = spectral_calibration_verbose
     )
     return coefs, template, transmission, lλ, las, laser_profile, valid_lenslets
 end
