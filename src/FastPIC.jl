@@ -23,7 +23,9 @@ using Atomix,
     ZippedArrays
 
 export FastPICParams,
-    calibrate_profile
+    calibrate_profile,
+    spectral_calibration,
+    calibrate
 
 
 include("calibration.jl")

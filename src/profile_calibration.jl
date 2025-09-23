@@ -47,7 +47,7 @@ function calibrate_profile(
     end
     ProgressMeter.finish!(progress)
 
-    profiles, lamp_spectra, model = refine_lamp_model(
+    profiles, lamp_spectra, _ = refine_lamp_model(
         lamp,
         profiles,
         lamp_spectra;
@@ -59,7 +59,7 @@ function calibrate_profile(
         fit_profile_verbose = fit_profile_verbose,
         ntasks = ntasks
     )
-    return profiles, bboxes, lamp_spectra, model
+    return profiles, lamp_spectra
 end
 
 function initialize_profile!(
