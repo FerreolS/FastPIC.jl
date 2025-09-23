@@ -1,3 +1,30 @@
+"""
+    calibrate_profile(lamp::WeightedArray{T,2}; calib_params::FastPICParams = FastPICParams(), valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)) where {T}
+
+Calibrate spectral profiles from lamp data using iterative fitting.
+
+This function performs a complete profile calibration workflow:
+1. Initialize profile models for each valid lenslet
+2. Fit individual profiles to lamp data
+3. Extract initial lamp spectra
+4. Refine profiles through iterative modeling to remove effects of overlapping lenslets spectra
+
+# Arguments
+- `lamp::WeightedArray{T,2}`: 2D lamp calibration data with uncertainties
+- `calib_params::FastPICParams`: Configuration parameters (default: FastPICParams())
+- `valid_lenslets::AbstractVector{Bool}`: Boolean mask for valid lenslets (default: all true)
+
+# Returns
+- `Tuple{Vector{Union{Profile,Nothing}}, Vector{Union{WeightedArray,Nothing}}}`: 
+  - Fitted profile models for each lenslet
+  - Extracted lamp spectra for each lenslet
+
+# Examples
+```julia
+profiles, lamp_spectra = calibrate_profile(lamp_data; calib_params=my_params)
+```
+"""
+
 function calibrate_profile(
         lamp::WeightedArray{T, 2}
         ; calib_params::FastPICParams = FastPICParams(),
@@ -62,6 +89,27 @@ function calibrate_profile(
     return profiles, lamp_spectra
 end
 
+"""
+    initialize_profile!(valid_lenslets, lamp; calib_params::FastPICParams = FastPICParams())
+
+Initialize profile models and bounding boxes for spectral extraction.
+
+Creates initial profile models for each valid lenslet using configuration parameters.
+Updates the `valid_lenslets` mask in-place if any lenslets are found to be invalid.
+
+# Arguments
+- `valid_lenslets`: Boolean vector indicating valid lenslets (modified in-place)
+- `lamp`: Input lamp data for determining bounding boxes
+- `calib_params::FastPICParams`: Configuration parameters
+
+# Returns
+- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,Nothing}}}`:
+  - Bounding boxes for each lenslet
+  - Initial profile models for each lenslet
+
+# Side Effects
+Modifies `valid_lenslets` in-place, setting invalid lenslets to `false`.
+"""
 function initialize_profile!(
         valid_lenslets,
         lamp;
@@ -89,6 +137,38 @@ function initialize_profile!(
     return bboxes, profiles
 end
 
+"""
+    refine_lamp_model(lamp, profiles, lamp_spectra; kwargs...)
+
+Refine profile models through iterative fitting and residual analysis to remove effects of overlapping spectra from neighboring lenslets.
+
+Performs multiple iterations of profile fitting where each iteration:
+1. Computes residuals from previous model
+2. Refits profiles to residual + model data
+3. Extracts updated spectra
+4. Updates the forward model
+
+# Arguments
+- `lamp::WeightedArray{T,2}`: Input lamp calibration data
+- `profiles`: Vector of initial profile models
+- `lamp_spectra`: Vector of initial extracted spectra
+
+# Keyword Arguments
+- `fit_profile_maxeval::Int = 10_000`: Maximum evaluations for profile fitting
+- `verbose::Bool = false`: Enable progress reporting
+- `profile_loop::Int = 2`: Number of refinement iterations
+- `extra_width::Int = 2`: Extra pixels around profile bbox for modeling
+- `lamp_extract_restrict = 0`: Threshold for spectrum extraction
+- `keep_loop::Bool = false`: Keep intermediate models for each loop
+- `fit_profile_verbose::Bool = false`: Verbose output for individual fits
+- `ntasks = 4*Threads.nthreads()`: Number of parallel tasks
+
+# Returns
+- `Tuple{Vector{Union{Profile,Nothing}}, Vector{Union{WeightedArray,Nothing}}, Array}`:
+  - Refined profile models
+  - Refined extracted spectra  
+  - Forward model of the lamp data
+"""
 function refine_lamp_model(
         lamp,
         profiles,
@@ -189,6 +269,27 @@ function refine_lamp_model(
 end
 
 
+"""
+    get_meanx(data::WeightedArray{T,N}, bbox; relative=false) where {T,N}
+
+Compute the precision-weighted mean position along the first axis.
+
+Calculates the centroid position using: `Σ(x * √w * I) / Σ(√w * I)`
+where x is position, w is precision (inverse variance), and I is intensity.
+
+# Arguments
+- `data::WeightedArray{T,N}`: Input weighted data
+- `bbox`: Bounding box defining the region of interest
+- `relative::Bool = false`: If true, use data directly; if false, extract bbox view first
+
+# Returns
+- `Float64`: Precision-weighted mean position along the first axis
+
+# Examples
+```julia
+center_x = get_meanx(detector_data, profile_bbox)
+```
+"""
 function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
     if relative
         (; value, precision) = data
@@ -201,6 +302,33 @@ function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, 
 end
 
 
+"""
+    fit_profile(data::WeightedArray{T,N}, profile::Profile{T2,M}; maxeval=10_000, verbose=false, relative=false) where {T,T2,N,M}
+
+Fit a profile model to weighted data using maximum likelihood estimation.
+
+Optimizes profile parameters by minimizing the scaled L2 loss between the profile model
+and the input data. Uses the NEWUOA algorithm for derivative-free optimization.
+
+# Arguments
+- `data::WeightedArray{T,N}`: Input weighted data to fit
+- `profile::Profile{T2,M}`: Initial profile model to optimize
+- `maxeval::Int = 10_000`: Maximum number of function evaluations
+- `verbose::Bool = false`: Enable optimization verbose output
+- `relative::Bool = false`: If true, use data directly; if false, extract profile bbox
+
+# Returns
+- `Profile{T2,M}`: Optimized profile model with fitted parameters
+
+# Algorithm
+Uses automatic parameter scaling based on polynomial order and the NEWUOA 
+trust-region algorithm for robust convergence.
+
+# Examples
+```julia
+fitted_profile = fit_profile(lamp_data, initial_profile; maxeval=5000, verbose=true)
+```
+"""
 function fit_profile(
         data::WeightedArray{T, N},
         profile::Profile{T2, M};
@@ -224,4 +352,4 @@ function fit_profile(
     return re(vec)
 end
 
-build_loss(data, re) = x -> likelihood(ScaledL2Loss(dims = 1, nonnegative = true), data, re(x)())
+# build_loss(data, re) = x -> likelihood(ScaledL2Loss(dims = 1, nonnegative = true), data, re(x)())
