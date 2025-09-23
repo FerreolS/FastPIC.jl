@@ -49,7 +49,7 @@ end
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
     spectral_calibration_verbose::Bool = true
-
+    spectral_recalibration_regul::Float64 = 1.0 # Tikhonov regularization parameter for spectral recalibration
 
     ntasks::Int = 4 * Threads.nthreads()
 end

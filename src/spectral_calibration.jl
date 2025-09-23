@@ -102,15 +102,18 @@ function build_λrange(λs::Vector{Vector{Float64}}, valid_lenslets; superres = 
     return range(start = minimum(blue), stop = maximum(red), step = median((red .- blue)) ./ nb_el)
 end
 
-function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets)
+function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets; regul = 1)
     nλ = length(λ)
     transmission = zeros(Float64, length(valid_lenslets))
     MI = Vector{SparseMatrixCSC{Float64, Int}}(undef, length(valid_lenslets))
-    A = zeros(Float64, nλ, nλ)
-    diagA = 2 * ones(Float64, nλ)
-    diagA[1] = 1
-    diagA[end] = 1
-    A = Array(BandedMatrix((0 => diagA, 1 => -1 * ones(nλ - 1), -1 => -1 * ones(nλ - 1)), (nλ, nλ)))
+    if regul == 0
+        A = zeros(Float64, nλ, nλ)
+    else
+        diagA = 2 * regul * ones(Float64, nλ)
+        diagA[1] = regul
+        diagA[end] = regul
+        A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
+    end
     # TO BE FIXED : ADD TIKHONOV PARAMETER AS INPUT
     b = zeros(Float64, nλ)
     foreach(findall(valid_lenslets)) do idx
@@ -175,10 +178,11 @@ function recalibrate_wavelengths(
         valid_lenslets;
         verbose = false,
         ntasks = Threads.nthreads() * 4,
+        regul = 1,
         loop = 2 # TODO put in calib_params
     )
 
-    template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets)
+    template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets; regul = regul)
 
     new_coefs = similar(coefs)
 
@@ -231,11 +235,12 @@ function spectral_calibration(
         las,
         reference_pixel,
         valid_lenslets;
+        regul = spectral_recalibration_regul,
         loop = spectral_recalibration_loop,
         ntasks = ntasks,
         verbose = spectral_calibration_verbose
     )
-    return coefs, template, transmission, lλ, las, laser_spectra, valid_lenslets
+    return coefs, template, transmission, lλ,   valid_lenslets
 end
 
 
