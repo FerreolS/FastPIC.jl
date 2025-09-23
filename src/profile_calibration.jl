@@ -96,7 +96,7 @@ function refine_lamp_model(
         ntasks = 4 * Threads.nthreads(),
         kwargs...
     )
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict, ntasks = ntasks)
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict, ntasks = ntasks, nonnegative = true)
 
     return refine_lamp_model(lamp, profiles, lamp_spectra; lamp_extract_restrict = lamp_extract_restrict, ntasks = ntasks, kwargs...)
 end
@@ -150,7 +150,7 @@ function refine_lamp_model(
                         profiles[i] = nothing
                         error("NaN found in cfwhm for lenslet $i")
                     end
-                    lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict)
+                    lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict, nonnegative = true)
                     if any(isnan.(lamp_spectra[i]))
                         profiles[i] = nothing
                         error("NaN found in lamp spectrum for lenslet $i")
