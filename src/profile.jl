@@ -163,3 +163,23 @@ function extract_spectra(
     end
     return spectra
 end
+
+
+function filter_spectra_outliers!(
+        spectra;
+        threshold = 3
+    )
+    valid_spectra = findall(!isnothing, spectra)
+    q = hcat([spectra[i].value for i in valid_spectra ]...)
+    m = median(q; dims = 2) # median spectrum
+    s = mad.(eachslice(q, dims = 1))
+    bad = @. !((m - threshold * s) <= q <= (m + threshold * s))
+    for i in eachindex(IndexCartesian(), bad)
+        if bad[i]
+            spectra[valid_spectra[i[2]]].precision[i[1]] = 0
+            spectra[valid_spectra[i[2]]].value[i[1]] = 0
+        end
+    end
+
+    return
+end

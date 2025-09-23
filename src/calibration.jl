@@ -36,6 +36,7 @@ end
     fit_profile_verbose::Bool = false
     refine_profile_verbose::Bool = true
     lamp_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
+    outliers_threshold::Float64 = 3.0 # threshold (in sigma) to consider a lenslet spectrum as an outlier when filtering the lamp spectra
 
 
     # Spectral calibration parameters
