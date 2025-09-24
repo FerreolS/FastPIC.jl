@@ -224,7 +224,11 @@ function refine_lamp_model(
                         resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
                     end
                     profiles[i] = fit_profile(
-                        resi, profiles[i]; relative = true, maxeval = fit_profile_maxeval, verbose = fit_profile_verbose
+                        resi,
+                        profiles[i];
+                        relative = true,
+                        maxeval = fit_profile_maxeval,
+                        verbose = fit_profile_verbose
                     )
                     if any(isnan.(profiles[i].cfwhm))
                         profiles[i] = nothing
@@ -347,7 +351,7 @@ function fit_profile(
     vec, re = Optimisers.destructure(profile)
 
     d = relative ? data : view(data, profile.bbox)
-    f(x) = likelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)())
+    f(x) = likelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
     Newuoa.optimize!(f, vec, 1, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
     return re(vec)
 end

@@ -42,11 +42,13 @@ Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVecto
 Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
 
 
-((; type, bbox, ycenter, cfwhm, cx)::Profile)() = get_profile(type, bbox, ycenter, cfwhm, cx)
-((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}) where {T2} = get_profile(T2, bbox, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(; normalize = true) =
+    get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}; normalize = true) where {T2} =
+    get_profile(normalize ? Val(:normalize) : Val(:raw), T2, bbox, ycenter, cfwhm, cx)
 
-((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}) =
-    get_profile(type, bbox2, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}; normalize = true) =
+    get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox2, ycenter, cfwhm, cx)
 
 
 """
@@ -71,12 +73,13 @@ For N=2, supports asymmetric profiles with different left/right widths.
 - `Array{T,2}`: 2D profile image 
 """
 function get_profile(
+        ::Val{S},
         ::Type{T},
         bbox::BoundingBox{Int64},
         ycenter::Float64,
         cfwhm::Array{Float64, N},
         cx::Vector{Float64}
-    ) where {N, T}
+    ) where {N, T, S}
 
     xorder = length(cx)
     fwhmorder = size(cfwhm, 1)
@@ -122,7 +125,10 @@ function get_profile(
             end
         end
     end
-    return img #./ sum(img; dims=1)
+    if S == :normalize
+        return img ./ sum(img; dims = 1)
+    end
+    return img
 end
 
 """
