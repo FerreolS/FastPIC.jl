@@ -107,12 +107,15 @@ using Atomix,
     Optimisers,
     OptimPackNextGen,
     OptimPackNextGen.Powell.Newuoa,
+    OptimPackNextGen.BraDi,
     Parameters,
     ProgressMeter,
     Random,
+    Setfield,
     SparseArrays,
     StaticArrays,
     StatsBase,
+    StructuredArrays,
     TwoDimensional,
     WeightedData,
     ZippedArrays
@@ -129,5 +132,6 @@ include("profile.jl")
 include("profile_calibration.jl")
 include("interpolations.jl")
 include("spectral_calibration.jl")
+include("spectra_extraction.jl")
 
 end

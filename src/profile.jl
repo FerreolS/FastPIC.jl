@@ -164,68 +164,6 @@ function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams 
     return bbox
 end
 
-
-"""
-    extract_spectrum(data::WeightedArray, profile::Profile; restrict=0, nonnegative=false, inbbox=false)
-
-Extract a 1D spectrum from 2D/3D data using optimal weighted extraction.
-
-Performs weighted least-squares fitting of the profile model to data:
-`α = (P^T W P)^(-1) P^T W d`
-
-where P is the profile, W is the precision matrix, and d is the data.
-
-# Arguments
-- `data`: Input weighted data (2D or 3D)
-- `profile`: Profile model for extraction
-- `restrict`: Threshold for profile truncation (0 = no truncation)
-- `nonnegative`: Enforce non-negative extracted values
-- `inbbox`: If true, assumes data is already cropped to profile bbox
-
-# Returns
-- `WeightedArray{T}`: Extracted spectrum with uncertainties
-
-# Examples
-```julia
-spectrum = extract_spectrum(detector_data, trace_profile; nonnegative=true)
-```
-"""
-function extract_spectrum(
-        data::WeightedArray{T, N},
-        profile::Profile{T2, M};
-        restrict = 0,
-        nonnegative = false,
-        inbbox = false
-    ) where {T, N, T2, M}
-    bbox = profile.bbox
-    if inbbox
-        (; value, precision) = data
-    else
-        if N > 2
-            (; value, precision) = view(data, bbox, :)
-        else
-            (; value, precision) = view(data, bbox)
-        end
-    end
-    model = profile()
-
-    if restrict > 0
-        model .*= (model .> T2(restrict))
-    end
-
-    αprecision = dropdims(sum(model .^ 2 .* precision, dims = 1), dims = 1)
-    α = dropdims(sum(model .* precision .* value, dims = 1), dims = 1) ./ αprecision
-
-    nanpix = .!isnan.(α)
-    if nonnegative
-        positive = nanpix .& (α .>= T(0))
-    else
-        positive = nanpix
-    end
-
-    return WeightedArray(positive .* α, positive .* αprecision)
-end
-
 """
     get_wavelength(coefs, ref, pixel)
 
@@ -265,43 +203,6 @@ get_wavelength(coefs, reference_pixel, pixel) =
 function get_wavelength(::Val{order}, ::Val{len}, coefs, reference_pixel, pixel) where {order, len}
     fullA = SMatrix{len, order + 1}(((pixel .- reference_pixel) ./ reference_pixel) .^ reshape(0:order, 1, :))
     return fullA * coefs
-end
-
-
-"""
-    extract_spectra(data::WeightedArray, profiles::Vector; restrict=0, nonnegative=false, ntasks=4*Threads.nthreads())
-
-Extract multiple spectra from data using an array of profile models.
-
-Parallelized version of `extract_spectrum` for processing multiple traces simultaneously.
-
-# Arguments
-- `data`: Input weighted data (2D or 3D)
-- `profiles`: Vector of Profile objects (Nothing for invalid traces)
-- `restrict`: Profile truncation threshold
-- `nonnegative`: Enforce non-negative extracted values
-- `ntasks`: Number of parallel tasks for processing
-
-# Returns
-- `Vector{Union{WeightedArray{T,1}, Nothing}}`: Array of extracted spectra
-"""
-function extract_spectra(
-        data::WeightedArray{T, N},
-        profiles::Vector{Union{Profile{T2, M}, Nothing}};
-        restrict = 0,
-        nonnegative::Bool = false,
-        ntasks = 4 * Threads.nthreads()
-    ) where {T <: Real, N, T2 <: Real, M}
-
-    (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
-    valid_lenslets = map(!isnothing, profiles)
-    profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
-    spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
-    fill!(spectra, nothing)
-    tforeach(findall(valid_lenslets); ntasks = ntasks) do i
-        spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
-    end
-    return spectra
 end
 
 
