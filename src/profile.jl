@@ -241,10 +241,29 @@ Computes: `λ = Σ coefs[i] * ((pixel - ref)/ref)^(i-1)`
 # Returns
 Wavelength values corresponding to input pixels
 """
-get_wavelength(coefs, ref, pixel) = get_wavelength(Val(length(coefs) - 1), Val(length(pixel)), coefs, ref, pixel)
 
-function get_wavelength(::Val{order}, ::Val{len}, coefs, ref, pixel) where {order, len}
-    fullA = SMatrix{len, order + 1}(((pixel .- ref) ./ ref) .^ reshape(0:order, 1, :))
+function get_wavelength(
+        coefs::Vector{<:Union{Nothing, Vector{Float64}}},
+        reference_pixel,
+        pixel;
+        ntasks = 4 * Threads.nthreads()
+    )
+
+    wvlngth = tmap(coefs; ntasks = ntasks) do coef
+        if isnothing(coef)
+            return nothing
+        else
+            return get_wavelength(coef, reference_pixel, pixel)
+        end
+    end
+    return collect(wvlngth)
+end
+
+get_wavelength(coefs, reference_pixel, pixel) =
+    get_wavelength(Val(length(coefs) - 1), Val(length(pixel)), coefs, reference_pixel, pixel)
+
+function get_wavelength(::Val{order}, ::Val{len}, coefs, reference_pixel, pixel) where {order, len}
+    fullA = SMatrix{len, order + 1}(((pixel .- reference_pixel) ./ reference_pixel) .^ reshape(0:order, 1, :))
     return fullA * coefs
 end
 
