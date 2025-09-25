@@ -215,11 +215,11 @@ function build_λrange(λs::AbstractMatrix{<:Real}; superres = 1)
     return range(start = minimum(blue), stop = maximum(red), step = median((red .- blue)) ./ nb_el)
 end
 
-function build_λrange(λs::Vector{Vector{Float64}}, valid_lenslets; superres = 1)
-    idx = findall(valid_lenslets)
-    nb_el = round(Int, maximum(length.(λs[idx])) * superres)
-    blue = minimum.(λs[idx])
-    red = maximum.(λs[idx])
+function build_λrange(λs::Vector{<:Union{Nothing, Vector{Float64}}}; superres = 1)
+    λ = filter(!isnothing, λs)
+    nb_el = round(Int, maximum(length.(λ)) * superres)
+    blue = minimum.(λ)
+    red = maximum.(λ)
     return range(start = minimum(blue), stop = maximum(red), step = median((red .- blue)) ./ nb_el)
 end
 
@@ -255,7 +255,6 @@ function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets; 
         diagA[end] = regul
         A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
     end
-    # TO BE FIXED : ADD TIKHONOV PARAMETER AS INPUT
     b = zeros(Float64, nλ)
     foreach(findall(valid_lenslets)) do idx
         (; value, precision) = spectra[idx]
@@ -418,7 +417,8 @@ function recalibrate_wavelengths(
 
     template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets; regul = regul)
 
-    new_coefs = similar(coefs)
+    new_coefs = Vector{Union{Nothing, Vector{Float64}}}(undef, length(coefs))
+    fill!(new_coefs, nothing)
 
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
 
@@ -489,7 +489,7 @@ function spectral_calibration(
     @unpack_FastPICParams calib_params
 
     laser_spectra, las, coefs, λs, valid_lenslets = laser_calibration!(L, lasers, profiles; calib_params = calib_params)
-    lλ = build_λrange(λs, valid_lenslets; superres = spectral_superres)
+    lλ = build_λrange(λs; superres = spectral_superres)
 
     coefs, template, transmission = recalibrate_wavelengths(
         lλ,
@@ -540,10 +540,13 @@ function laser_calibration!(
 
     laser_spectra = Vector{L}(undef, NLENS)
     laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
-    coefs = Vector{Vector{Float64}}(undef, NLENS)
-    λs = Vector{Vector{Float64}}(undef, NLENS)
+    coefs = Vector{Union{Nothing, Vector{Float64}}}(undef, NLENS)
+    λs = Vector{Union{Nothing, Vector{Float64}}}(undef, NLENS)
     las = Vector{typeof(laser_model)}(undef, NLENS)
 
+    fill!(coefs, nothing)
+    fill!(λs, nothing)
+    fill!(laser_spectra, nothing)
     valid_lenslets = map(!isnothing, profiles)
     progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
