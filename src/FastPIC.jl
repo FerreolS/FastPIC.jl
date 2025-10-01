@@ -102,6 +102,7 @@ using Atomix,
     DelimitedFiles,
     EasyFITS,
     InterpolationKernels,
+    Interpolations,
     LinearAlgebra,
     OhMyThreads,
     Optimisers,
@@ -124,7 +125,8 @@ export FastPICParams,
     calibrate_profile,
     spectral_calibration,
     calibrate,
-    get_wavelength
+    get_wavelength,
+    spectral_regridding
 
 
 include("calibration.jl")
@@ -133,5 +135,6 @@ include("profile_calibration.jl")
 include("interpolations.jl")
 include("spectral_calibration.jl")
 include("spectra_extraction.jl")
+include("regridding.jl")
 
 end
