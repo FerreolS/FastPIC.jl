@@ -107,14 +107,14 @@ Assertion checks validate parameter consistency and ranges.
     profile_precision::Type = Float32
     profile_order::Int = 3
     @assert profile_order ≥ 1
-    extra_width::Int = 2 # extra width around bbox to consider neighboring lenslets when refining the model
+    extra_width::Int = 5 # extra width around bbox to consider neighboring lenslets when refining the model
     profile_loop::Int = 2 # number of outer loop of profile refinement
     lamp_cfwhms_init::VecOrMat{R} = vcat(2.5, zeros(profile_order))
-    @assert size(lamp_cfwhms_init, 2) ≤ 2
+    #@assert size(lamp_cfwhms_init, 2) ≤ 2
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
     refine_profile_verbose::Bool = true
-    lamp_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
+    lamp_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     outliers_threshold::Float64 = 3.0 # threshold (in sigma) to consider a lenslet spectrum as an outlier when filtering the lamp spectra
 
 
@@ -124,7 +124,7 @@ Assertion checks validate parameter consistency and ranges.
     spectral_final_order::Int = 3
     @assert spectral_final_order ≥ spectral_initial_order
     lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
-    laser_extract_restrict::Float64 = 0 # minimum relative amplitude of the profile to consider when extracting the spectrum
+    laser_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
     spectral_calibration_verbose::Bool = true
@@ -202,5 +202,6 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     coefs, template, transmission, lλ, valid_lenslets = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
+
     return profiles, lamp_spectra, coefs, template, transmission, lλ, valid_lenslets
 end
