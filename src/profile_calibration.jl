@@ -66,7 +66,7 @@ function calibrate_profile(
                 lamp_spectra[i] = extract_spectrum(lamp, profiles[i]; restrict = lamp_extract_restrict, nonnegative = true)
 
             catch e
-                @debug "Error on lenslet $i" exception = e
+                @debug "Error on lenslet $i" exception = (e, catch_backtrace())
                 profiles[i] = nothing
             end
         end
@@ -184,8 +184,9 @@ end
 function refine_lamp_model(
         lamp::WeightedArray{T, 2},
         profiles,
-        lamp_spectra
-        ; fit_profile_maxeval = 10_000,
+        lamp_spectra;
+        dont_fit_profile = false,
+        fit_profile_maxeval = 10_000,
         verbose::Bool = false,
         profile_loop::Int = 2,
         extra_width::Int = 2,
@@ -197,11 +198,16 @@ function refine_lamp_model(
 
     detectorbbox = BoundingBox(axes(lamp))
 
-    model = keep_loop ? zeros(T, size(lamp)..., profile_loop) : zeros(T, size(lamp))
-    model_indices = LinearIndices(model)
+    model_value = keep_loop ? zeros(T, size(lamp)..., profile_loop) : zeros(T, size(lamp))
+    model_precision = keep_loop ? fill(T(+Inf), size(lamp)..., profile_loop) : zeros(T, size(lamp))
+    model_indices = LinearIndices(model_value)
 
-    model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
+    model_value_view = unsafe_wrap(AtomicMemory{T}, pointer(model_value), length(model_value); own = false)
+    model_precision_view = unsafe_wrap(AtomicMemory{T}, pointer(model_precision), length(model_value); own = false)
 
+    model = WeightedArray(model_value, model_precision)
+
+    profiles = deepcopy(profiles)
     valid_lenslets = map(!isnothing, profiles)
     progress = nothing
     verbose && (progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true))
@@ -212,8 +218,12 @@ function refine_lamp_model(
         else
             res = lamp .- (keep_loop ? view(model, :, :, l - 1) : model)
         end
-        keep_loop || fill!(model, 0.0)
-        @localize profiles @localize lamp_spectra @localize res @localize progress  OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
+        if !keep_loop
+            fill!(model_value, T(0))
+            fill!(model_precision, T(+Inf))
+        end
+        #@localize profiles @localize lamp_spectra @localize res @localize progress
+        @localize res @localize progress OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
             if isnothing(profiles[i])
                 nothing
             else
@@ -221,15 +231,19 @@ function refine_lamp_model(
                     if l == 1
                         resi = view(res, profiles[i].bbox)
                     else
-                        resi = WeightedArray(view(res, profiles[i].bbox).value .+ profiles[i]() .* reshape(lamp_spectra[i].value, 1, :), view(res, profiles[i].bbox).precision)
+                        prfl = (profiles[i]() .* reshape(lamp_spectra[i], 1, :))
+                        resi = WeightedArray(view(res, profiles[i].bbox).value .+ prfl.value, inv.(inv.(view(res, profiles[i].bbox).precision) .- prfl.precision))
+                        #    resi = WeightedArray(view(res, profiles[i].bbox).value .+ prfl.value, view(res, profiles[i].bbox).precision)
                     end
-                    profiles[i] = fit_profile(
-                        resi,
-                        profiles[i];
-                        relative = true,
-                        maxeval = fit_profile_maxeval,
-                        verbose = fit_profile_verbose
-                    )
+                    if !dont_fit_profile
+                        profiles[i] = fit_profile(
+                            deepcopy(resi),
+                            deepcopy(profiles[i]);
+                            relative = true,
+                            maxeval = fit_profile_maxeval,
+                            verbose = fit_profile_verbose
+                        )
+                    end
                     if any(isnan.(profiles[i].cfwhm))
                         profiles[i] = nothing
                         error("NaN found in cfwhm for lenslet $i")
@@ -246,29 +260,39 @@ function refine_lamp_model(
                         profiles[i] = nothing
                         error("NaN found in profile for lenslet $i")
                     end
+                    if any(map(x -> x < 0, p))
+                        #profiles[i] = nothing
+                        error("<0 found in profile for lenslet $i")
+                    end
 
-                    pr = p .* reshape(lamp_spectra[i].value, 1, :)
+                    pr = p .* reshape(lamp_spectra[i], 1, :)
+
                     bbox_indices = keep_loop ? view(model_indices, CartesianIndices(lbox), l) : view(model_indices, CartesianIndices(lbox))
                     @inbounds for (k, idx) in enumerate(bbox_indices)
                         # e.g. Atomically accumulate into the flat `model_view`
-                        Atomix.@atomic model_view[idx] += pr[k]
-                    end
-
-                    for k in eachindex(pr)
+                        if pr[k].precision > 0
+                            Atomix.@atomic model_value_view[idx] += pr[k].value
+                            Atomix.@atomic model_precision_view[idx] = inv(inv(pr[k].precision) + inv(model_precision_view[idx]))
+                        end
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
+                    #  rethrow()
                     profiles[i] = nothing
                     lamp_spectra[i] = nothing
                 end
-                verbose && next!(progress)
             end
+            verbose && next!(progress)
         end
 
         valid_lenslets = map(!isnothing, profiles)
 
     end
     verbose && ProgressMeter.finish!(progress)
+
+
+    model_precision[.!isfinite.(model_precision)] .= T(0)
+
     return profiles, lamp_spectra, model
 end
 
@@ -357,3 +381,27 @@ function fit_profile(
 end
 
 # build_loss(data, re) = x -> likelihood(ScaledL2Loss(dims = 1, nonnegative = true), data, re(x)())
+
+function transmission_refinement(
+        spectra,
+        profiles,
+        transmission,
+        lamp_template,
+        templateλ;
+        regul = 1.0,
+        ntasks = 4 * Threads.nthreads()
+    ) where {T}
+
+    i = 50
+    nλ = length(spectra[i])
+
+    s = build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(profile_wavelength[i])...) * lamp_template
+    diagA = 2 * regul * ones(Float64, nλ)
+    diagA[1] = regul
+    diagA[end] = regul
+    diagA .+= s .^ 2 .* spectra[i].precision
+    A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
+    b = s .* spectra[i].precision .* (spectra[i].value .- s)
+
+    return A \ b
+end
