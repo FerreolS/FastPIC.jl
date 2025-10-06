@@ -212,7 +212,7 @@ end
 Remove outliers from extracted spectra using robust statistics.
 
 Identifies and zeros out spectral points that deviate more than `threshold` 
-median absolute deviations from the median spectrum across all traces.
+median absolute deviations from the median spectrum across all profiles.
 
 # Arguments
 - `spectra`: Vector of WeightedArray spectra (modified in-place)
@@ -220,6 +220,12 @@ median absolute deviations from the median spectrum across all traces.
 
 Sets precision to 0 and value to 0 for detected outliers.
 """
+function filter_spectra_outliers(spectra; kwargs...)
+    spectra_copy = deepcopy(spectra)
+    filter_spectra_outliers!(spectra_copy; kwargs...)
+    return spectra_copy
+end
+
 function filter_spectra_outliers!(
         spectra;
         threshold = 3
