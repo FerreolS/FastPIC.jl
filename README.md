@@ -5,3 +5,10 @@
 [![Build Status](https://github.com/FerreolS/FastPIC.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/FerreolS/FastPIC.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![Coverage](https://codecov.io/gh/FerreolS/FastPIC.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/FerreolS/FastPIC.jl)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+
+## TODO
+- remove valid_lenslets and use profiles instead
+- remove reference pixel and use cy instead
+- add a parameter to tune the balance between laser and lamp in spectral_refinement
+- use rebust weighted least squares for spectral refinement
+- redetect badpixels and update weights using the model of the lamp with the template
