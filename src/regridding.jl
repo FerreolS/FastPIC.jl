@@ -9,14 +9,14 @@ function spectral_regridding(
     fill!(regridded_spectra, nothing)
     #    @localize regridded_spectra tforeach(findall(!isnothing, data_spectra); ntasks = ntasks) do i
     foreach(findall(!isnothing, data_spectra)) do i
-        #  if !isnothing(profile_wavelength[i])
-        widx = findall(x -> x > 0, data_spectra[i].precision)
-        if length(widx) > 1
-            itp_value = extrapolate(interpolate((profile_wavelength[i][widx],), data_spectra[i].value[widx], Gridded(Linear())), T(0.0))
-            itp_prec = extrapolate(interpolate((profile_wavelength[i],), data_spectra[i].precision, Gridded(Linear())), T(0.0))
-            regridded_spectra[i] = WeightedArray(itp_value.(λ_grid), max.(T(0.0), itp_prec.(λ_grid)))
+        if !isnothing(profile_wavelength[i])
+            widx = findall(x -> x > 0, data_spectra[i].precision)
+            if length(widx) > 1
+                itp_value = extrapolate(interpolate((profile_wavelength[i][widx],), data_spectra[i].value[widx], Gridded(Linear())), T(0.0))
+                itp_prec = extrapolate(interpolate((profile_wavelength[i],), data_spectra[i].precision, Gridded(Linear())), T(0.0))
+                regridded_spectra[i] = WeightedArray(itp_value.(λ_grid), max.(T(0.0), itp_prec.(λ_grid)))
+            end
         end
-        #     end
     end
     return regridded_spectra
 end
