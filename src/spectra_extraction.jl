@@ -79,14 +79,14 @@ Parallelized version of `extract_spectrum` for processing multiple traces simult
 """
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::Vector{Union{Profile{T2, M}, Nothing}};
+        profiles::Vector{Union{Profile{T2, M, C}, Nothing}};
         transmission = FastUniformArray(T2(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
         ntasks = 4 * Threads.nthreads(),
         refinement_loop = 0,
         extra_width = 5
-    ) where {T <: Real, N, T2 <: Real, M}
+    ) where {T <: Real, N, T2 <: Real, M, C}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
@@ -95,6 +95,7 @@ function extract_spectra(
     if refinement_loop > 0
         if N == 3
             for t in axes(data, 3)
+                #   tforeach(axes(data, 3); ntasks = ntasks) do t
                 _, spctr, _ = refine_lamp_model(view(data, :, :, t), profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
                 foreach(findall(!isnothing, profiles)) do i
                     spectra[i, t] .= spctr[i]
