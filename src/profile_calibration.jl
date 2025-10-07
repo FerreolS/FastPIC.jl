@@ -378,26 +378,41 @@ end
 
 # build_loss(data, re) = x -> likelihood(ScaledL2Loss(dims = 1, nonnegative = true), data, re(x)())
 
-function transmission_refinement(
-        spectra,
+function calibrate_spectral_transmission(
+        lamp_spectra,
         profiles,
-        transmission,
         lamp_template,
-        templateλ;
-        regul = 1.0,
-        ntasks = 4 * Threads.nthreads()
+        templateλ
     )
+    trms = Vector{Union{Nothing, WeightedArray{Float64, 1}}}(undef, length(profiles))
+    fill!(trms, nothing)
 
-    i = 50
-    nλ = length(spectra[i])
+    for i in findall(!isnothing, profiles)
+        trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))
+    end
+    return trms
+end
 
-    s = build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(profile_wavelength[i])...) * lamp_template
-    diagA = 2 * regul * ones(Float64, nλ)
-    diagA[1] = regul
-    diagA[end] = regul
-    diagA .+= s .^ 2 .* spectra[i].precision
-    A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
-    b = s .* spectra[i].precision .* (spectra[i].value .- s)
+#=
+Variance estimation from
+Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of a normal approximation to the distribution of the ratio of two independent normal random variables". Statistical Papers
+=#
 
-    return A \ b
+
+function correct_spectral_transmission(
+        spectra::Vector{<:Union{Nothing, WeightedArray{T, N}}},
+        transmission
+    ) where {T <: Real, N}
+    corrected = similar(spectra)
+    tforeach(findall(!isnothing, spectra); ntasks = 4 * Threads.nthreads()) do i
+        (; value, precision) = transmission[i]
+        spec_val = get_value(spectra[i])
+        spec_prec = spectra[i].precision
+        mean_spec = @. T(spec_val / value)
+        var_spec = @. T(inv(spec_prec) / (value .^ 2) + (spec_val / value) .^ 2 .* inv(precision) / (value .^ 2))
+        corrected[i] = WeightedArray(mean_spec, inv.(var_spec))
+    end
+
+
+    return corrected
 end

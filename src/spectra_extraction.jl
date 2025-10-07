@@ -106,8 +106,19 @@ function extract_spectra(
         end
     else
         @localize spectra tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
-            spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative) ./ T2(transmission[i])
+            spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
         end
+    end
+    if transmission isa FastUniformArray
+        return spectra
+    end
+
+    if Base.typesplit(eltype(transmission), Nothing) <: Real
+        @localize spectra  tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
+            spectra[i] = spectra[i] ./ T2(transmission[i])
+        end
+    else
+        spectra = correct_spectral_transmission(spectra, transmission)
     end
     return spectra
 end
