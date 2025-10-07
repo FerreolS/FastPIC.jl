@@ -245,7 +245,6 @@ function estimate_template(
         profiles::AbstractVector{<:Union{Nothing, Profile}},
         λ,
         coefs,
-        reference_pixel,
         spectra;
         regul = 1
     )
@@ -410,6 +409,7 @@ function recalibrate_wavelengths(
         order,
         lamp_spectra,
         laser_spectra,
+        lasers_λs,
         lasers_model;
         verbose = false,
         ntasks = Threads.nthreads() * 4,
@@ -417,7 +417,7 @@ function recalibrate_wavelengths(
         loop = 2 # TODO put in calib_params
     )
     valid_lenslets = map(!isnothing, profiles)
-    
+
     template, transmission = estimate_template(profiles, λ, coefs, lamp_spectra; regul = regul)
 
     new_coefs = Vector{Union{Nothing, Vector{Float64}}}(undef, length(coefs))

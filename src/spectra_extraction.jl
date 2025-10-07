@@ -104,7 +104,7 @@ function extract_spectra(
             _, spectra, _ = refine_lamp_model(data, profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
         end
     else
-        tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
+        @localize spectra tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
             spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative) ./ T2(transmission[i])
         end
     end

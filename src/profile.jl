@@ -34,10 +34,10 @@ struct Profile{T, N}
 end
 
 Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
-    Profile(bbox, size(profiles[i].bbox, 2) / 2, cfwhm, cx)
+    Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
 
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
-    Profile(T, bbox, size(profiles[i].bbox, 2) / 2, cfwhm, cx)
+    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx)
 
 Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
 
