@@ -7,8 +7,7 @@
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 ## TODO
-- remove valid_lenslets and use profiles instead
-- remove reference pixel and use cy instead
+
 - add a parameter to tune the balance between laser and lamp in spectral_refinement
-- use rebust weighted least squares for spectral refinement
-- redetect badpixels and update weights using the model of the lamp with the template
+- use robust weighted least squares for spectral refinement
+- re-detect bad-pixels and update weights using the model of the lamp with the template

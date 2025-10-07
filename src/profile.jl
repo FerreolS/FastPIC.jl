@@ -1,5 +1,5 @@
 """
-    Profile{T,N}
+    Profile{T,N,C}
 
 A parametric model of the spectrum of each SPHERE/IFS lenslet.
 
@@ -9,6 +9,7 @@ A parametric model of the spectrum of each SPHERE/IFS lenslet.
 - `ycenter::Float64`: Central position along the dispersion axis
 - `cfwhm::Array{Float64,N}`: Polynomial coefficients for FWHM variation (N=1 symmetric, N=2 asymmetric)
 - `cx::Vector{Float64}`: Polynomial coefficients for lateral center position variation
+- `spectral_coefs::C`: Polynomial coefficients for wavelength solution (can be `nothing` if not calibrated)
 
 # Examples
 ```julia
@@ -19,27 +20,30 @@ profile = Profile(Float64, bbox, 125.0, cfwhm, cx)
 ```
 """
 
-struct Profile{T, N}
+struct Profile{T, N, C}
     type::Type{T}
     bbox::BoundingBox{Int64}
     ycenter::Float64
     cfwhm::Array{Float64, N}
     cx::Vector{Float64}
-    function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector) where {N, T2 <: Real}
+    spectral_coefs::C
+    function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector, spectral_coefs::C) where {N, T2 <: Real, C <: Union{Nothing, <:AbstractVector{Float64}}}
         @assert T <: Real
         size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
         length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
-        return new{T, N}(T, bbox, ycenter, collect(cfwhm), collect(cx))
+        return new{T, N, C}(T, bbox, ycenter, collect(cfwhm), collect(cx), spectral_coefs)
     end
 end
+
+#const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
 Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
     Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
 
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
-    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx)
+    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing)
 
-Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
+Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
 
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(; normalize = true) =
@@ -50,6 +54,7 @@ Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx)
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}; normalize = true) =
     get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox2, ycenter, cfwhm, cx)
 
+#Profile(profile::Profile, spectral_coefs) = Profile(profile.type, profile.bbox, profile.ycenter, profile.cfwhm, profile.cx, spectral_coefs)
 
 """
     get_profile(::Type{T}, bbox::BoundingBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
@@ -205,6 +210,21 @@ function get_wavelength(::Val{order}, ::Val{len}, coefs, reference_pixel, pixel)
     return fullA * coefs
 end
 
+
+function get_wavelength(profile::Profile{T, N, <:AbstractVector{Float64}}) where {T, N}
+    return get_wavelength(profile.spectral_coefs, profile.ycenter - profile.bbox.ymin, 1:size(profile.bbox, 2))
+end
+
+function get_wavelength(profiles::Vector{<:Union{Nothing, Profile}}; ntasks = 4 * Threads.nthreads())
+    wvlngth = tmap(profiles; ntasks = ntasks) do p
+        if isnothing(p)
+            return nothing
+        else
+            return get_wavelength(p)
+        end
+    end
+    return collect(wvlngth)
+end
 
 """
     filter_spectra_outliers!(spectra; threshold=3)

@@ -198,7 +198,7 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = trues(calib_params.NLENS))
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
-    coefs, template, transmission, lλ = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
+    profiles, template, transmission, lλ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
 
-    return profiles, lamp_spectra, coefs, template, transmission, lλ
+    return profiles, lamp_spectra, template, transmission, lλ
 end
