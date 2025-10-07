@@ -62,7 +62,7 @@ params = FastPICParams(
 )
 
 # Run complete calibration
-profiles, lamp_spectra, coefs, template, transmission, λ_grid, valid = calibrate(
+profiles, lamp_spectra, coefs, template, transmission, λ_grid = calibrate(
     lamp_data, laser_data; calib_params = params
 )
 

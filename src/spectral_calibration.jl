@@ -237,14 +237,20 @@ explains all input spectra when convolved with their respective wavelength solut
 - `coefs::Vector`: Wavelength calibration coefficients for each spectrum
 - `reference_pixel::Float64`: Reference pixel for wavelength solutions
 - `spectra::Vector`: Observed spectra with uncertainties
-- `valid_lenslets::Vector{Bool}`: Mask for valid spectra to include
 - `regul::Real=1`: Tikhonov regularization parameter
 
 # Returns
 - `Tuple{Vector{Float64}, Vector{Float64}}`: Template spectrum and transmission factors
 """
-function estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets; regul = 1)
+function estimate_template(
+        profiles::AbstractVector{<:Union{Nothing, Profile}},
+        λ,
+        coefs,
+        spectra;
+        regul = 1
+    )
     nλ = length(λ)
+    valid_lenslets = map(!isnothing, profiles)
     transmission = zeros(Float64, length(valid_lenslets))
     MI = Vector{SparseMatrixCSC{Float64, Int}}(undef, length(valid_lenslets))
     if regul == 0
@@ -400,21 +406,20 @@ Performs iterative refinement where each iteration:
 - `Tuple{Vector, Vector{Float64}, Vector{Float64}}`: Refined coefficients, template, transmission
 """
 function recalibrate_wavelengths(
+        profiles::AbstractVector{<:Union{Nothing, Profile}},
         λ,
         coefs,
         order,
         lamp_spectra,
         laser_spectra,
-        lasers_λs,
-        lasers_model,
         reference_pixel,
-        valid_lenslets;
+        lasers_model;
         verbose = false,
         ntasks = Threads.nthreads() * 4,
         regul = 1,
         loop = 2 # TODO put in calib_params
     )
-
+    valid_lenslets = map(!isnothing, profiles)
     template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets; regul = regul)
 
     new_coefs = Vector{Union{Nothing, Vector{Float64}}}(undef, length(coefs))
@@ -423,7 +428,7 @@ function recalibrate_wavelengths(
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
 
     for _ in 1:loop
-        @localize progressbar @localize template @localize coefs OhMyThreads.tforeach(findall(valid_lenslets); ntasks = ntasks) do i
+        @localize coefs @localize template  OhMyThreads.tforeach(findall(valid_lenslets); ntasks = ntasks) do i
             #foreach(findall(valid_lenslets)) do i
             if (order + 1) > length(coefs[i])
                 coef = vcat(coefs[i], zeros(order - length(coefs[i]) + 1))
@@ -435,12 +440,13 @@ function recalibrate_wavelengths(
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
+                profiles[i] = nothing
             end
             verbose && next!(progressbar)
         end
         coefs = copy(new_coefs)
 
-        template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets)
+        template, transmission = estimate_template(profiles, λ, coefs, lamp_spectra)
 
     end
     verbose && (finish!(progressbar))
@@ -488,25 +494,24 @@ function spectral_calibration(
 
     @unpack_FastPICParams calib_params
 
-    laser_spectra, las, coefs, λs, valid_lenslets = laser_calibration!(L, lasers, profiles; calib_params = calib_params)
+    laser_spectra, las, coefs, λs = laser_calibration!(L, lasers, profiles; calib_params = calib_params)
     lλ = build_λrange(λs; superres = spectral_superres)
 
     coefs, template, transmission = recalibrate_wavelengths(
+        profiles,
         lλ,
         coefs,
         spectral_final_order,
         lamp_spectra,
         laser_spectra,
         lasers_λs,
-        las,
-        reference_pixel,
-        valid_lenslets;
+        las;
         regul = spectral_recalibration_regul,
         loop = spectral_recalibration_loop,
         ntasks = ntasks,
         verbose = spectral_calibration_verbose
     )
-    return coefs, template, transmission, lλ, valid_lenslets
+    return coefs, template, transmission, lλ
 end
 
 
@@ -533,8 +538,10 @@ Extract and fit laser spectra to establish initial wavelength calibrations.
 Updates the `profiles` vector in-place, setting invalid entries to `nothing`.
 """
 function laser_calibration!(
-        ::Type{L}, lasers,
-        profiles; calib_params::FastPICParams = FastPICParams()
+        ::Type{L},
+        lasers,
+        profiles;
+        calib_params::FastPICParams = FastPICParams()
     ) where {L}
     @unpack_FastPICParams calib_params
 
@@ -550,10 +557,8 @@ function laser_calibration!(
     valid_lenslets = map(!isnothing, profiles)
     progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
-    @localize profiles @localize laser_spectra @localize coefs OhMyThreads.tforeach(findall(valid_lenslets); ntasks = ntasks) do i
-        if sum(view(lasers, profiles[i].bbox).precision) == 0
-            valid_lenslets[i] = false
-        else
+    tforeach(findall(valid_lenslets); ntasks = ntasks) do i
+        if sum(view(lasers, profiles[i].bbox).precision) != 0
             try
                 laser_spectra[i] = extract_spectrum(lasers, profiles[i]; restrict = laser_extract_restrict)
                 las[i] = fit_laser(laser_spectra[i], laser_model)
@@ -575,12 +580,11 @@ function laser_calibration!(
 
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                valid_lenslets[i] = false
                 profiles[i] = nothing
             end
         end
         spectral_calibration_verbose && next!(progressbar)
     end
     spectral_calibration_verbose && finish!(progressbar)
-    return laser_spectra, las, coefs, λs, valid_lenslets
+    return laser_spectra, las, coefs, λs
 end

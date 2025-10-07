@@ -39,7 +39,7 @@ using LazyArtifacts
         #        profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
         #        coefs, template, transmission, lλ, valid_lenslets = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
 
-        profiles, lamp_spectra, coefs, template, transmission, lλ, valid_lenslets = calibrate(lamp, lasers, calib_params = calib_params, valid_lenslets = valid_lenslets)
+        profiles, lamp_spectra, coefs, template, transmission, lλ = calibrate(lamp, lasers, calib_params = calib_params, valid_lenslets = valid_lenslets)
     end
     # Write your tests here.
 end

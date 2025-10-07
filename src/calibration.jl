@@ -49,7 +49,6 @@ and include sensible defaults for typical SPHERE/IFS data.
 - `nλ::Int = 3`: Number of laser wavelengths (3 or 4)
 - `NLENS::Int = 18908`: Total number of lenslets in the detector
 - `bbox_params::BboxParams`: Bounding box configuration
-- `reference_pixel`: Reference pixel for wavelength calibration
 
 ## Lenslet Positions
 - `LASERS_CXY0S_INIT_PATH::String`: Path to initial lenslet positions file
@@ -159,7 +158,6 @@ This is the main entry point for the FastPIC calibration pipeline, combining:
   - `template`: Common lamp template spectrum
   - `transmission`: Transmission factors for each lenslet
   - `lλ`: Common wavelength grid
-  - `valid_lenslets`: Updated boolean mask of valid lenslets
 
 # Workflow
 1. **Profile Calibration**: Fit spatial profile models to lamp data using iterative refinement
@@ -201,7 +199,7 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = trues(calib_params.NLENS))
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
-    coefs, template, transmission, lλ, valid_lenslets = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
+    coefs, template, transmission, lλ = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
 
-    return profiles, lamp_spectra, coefs, template, transmission, lλ, valid_lenslets
+    return profiles, lamp_spectra, coefs, template, transmission, lλ
 end

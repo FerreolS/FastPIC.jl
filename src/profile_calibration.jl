@@ -127,7 +127,6 @@ function initialize_profile!(
     @inbounds for i in findall(valid_lenslets)
         bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
         if ismissing(bbox)
-            valid_lenslets[i] = false
             profiles[i] = nothing
         else
             bboxes[i] = bbox
@@ -284,9 +283,6 @@ function refine_lamp_model(
             end
             verbose && next!(progress)
         end
-
-        valid_lenslets = map(!isnothing, profiles)
-
     end
     verbose && ProgressMeter.finish!(progress)
 
