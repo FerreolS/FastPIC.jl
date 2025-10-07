@@ -390,7 +390,7 @@ function transmission_refinement(
         templateλ;
         regul = 1.0,
         ntasks = 4 * Threads.nthreads()
-    ) where {T}
+    )
 
     i = 50
     nλ = length(spectra[i])
