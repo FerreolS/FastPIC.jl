@@ -94,7 +94,6 @@ Assertion checks validate parameter consistency and ranges.
     @assert NLENS ≥ 1
 
     bbox_params::BboxParams = BboxParams()
-    reference_pixel = bbox_params.BBOX_HEIGHT / 2
 
     # Position of the lenslets
     LASERS_CXY0S_INIT_PATH::String = joinpath(dirname(pathof(FastPIC)), "lasers_cxy0s_init.txt")

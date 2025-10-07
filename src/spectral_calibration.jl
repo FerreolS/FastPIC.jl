@@ -225,7 +225,7 @@ end
 
 
 """
-    estimate_template(λ, coefs, reference_pixel, spectra, valid_lenslets; regul=1)
+    estimate_template(λ, coefs, spectra; regul=1)
 
 Estimate a common spectral template from multiple observed spectra.
 
@@ -235,7 +235,6 @@ explains all input spectra when convolved with their respective wavelength solut
 # Arguments
 - `λ::AbstractVector`: Common wavelength grid
 - `coefs::Vector`: Wavelength calibration coefficients for each spectrum
-- `reference_pixel::Float64`: Reference pixel for wavelength solutions
 - `spectra::Vector`: Observed spectra with uncertainties
 - `regul::Real=1`: Tikhonov regularization parameter
 
@@ -246,6 +245,7 @@ function estimate_template(
         profiles::AbstractVector{<:Union{Nothing, Profile}},
         λ,
         coefs,
+        reference_pixel,
         spectra;
         regul = 1
     )
@@ -264,7 +264,7 @@ function estimate_template(
     b = zeros(Float64, nλ)
     foreach(findall(valid_lenslets)) do idx
         (; value, precision) = spectra[idx]
-        profile_wavelength = get_wavelength(coefs[idx], reference_pixel, axes(value, 1))
+        profile_wavelength = get_wavelength(coefs[idx], profiles[idx].ycenter - profiles[idx].bbox.ymin, axes(value, 1))
         MI[idx] = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength)...)
         b .+= Array(MI[idx]' * (precision .* value))
         A .+= Array(MI[idx]' * (precision .* MI[idx]))
@@ -376,7 +376,7 @@ function spectral_refinement(coefs, lamp, lamp_template, wavelength, reference_p
 end
 
 """
-    recalibrate_wavelengths(λ, coefs, order, lamp_spectra, laser_spectra, lasers_λs, lasers_model, reference_pixel, valid_lenslets; kwargs...)
+    recalibrate_wavelengths(λ, coefs, order, lamp_spectra, laser_spectra, lasers_λs, lasers_model; kwargs...)
 
 Iteratively refine wavelength calibrations for all valid lenslets.
 
@@ -393,8 +393,6 @@ Performs iterative refinement where each iteration:
 - `laser_spectra::Vector`: Observed laser spectra  
 - `lasers_λs::Vector{Float64}`: Known laser wavelengths
 - `lasers_model::Vector`: Fitted laser models
-- `reference_pixel::Float64`: Reference pixel position
-- `valid_lenslets::Vector{Bool}`: Mask for valid lenslets
 
 # Keyword Arguments
 - `verbose::Bool=false`: Enable progress reporting
@@ -412,7 +410,6 @@ function recalibrate_wavelengths(
         order,
         lamp_spectra,
         laser_spectra,
-        reference_pixel,
         lasers_model;
         verbose = false,
         ntasks = Threads.nthreads() * 4,
@@ -420,7 +417,8 @@ function recalibrate_wavelengths(
         loop = 2 # TODO put in calib_params
     )
     valid_lenslets = map(!isnothing, profiles)
-    template, transmission = estimate_template(λ, coefs, reference_pixel, lamp_spectra, valid_lenslets; regul = regul)
+    
+    template, transmission = estimate_template(profiles, λ, coefs, lamp_spectra; regul = regul)
 
     new_coefs = Vector{Union{Nothing, Vector{Float64}}}(undef, length(coefs))
     fill!(new_coefs, nothing)
@@ -436,7 +434,7 @@ function recalibrate_wavelengths(
                 coef = copy(coefs[i])
             end
             try
-                new_coefs[i] = spectral_refinement(coef, lamp_spectra[i], template, λ, reference_pixel, lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
+                new_coefs[i] = spectral_refinement(coef, lamp_spectra[i], template, λ, profiles[i].ycenter - profiles[i].bbox.ymin, lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
@@ -571,12 +569,12 @@ function laser_calibration!(
                     throw("W singular  for lenslet $i")
                 end
                 coefs[i] = laser_calibration(
-                    spectral_initial_order, reference_pixel, lasers_λs, las[i].position, W
+                    spectral_initial_order, profiles[i].ycenter - profiles[i].bbox.ymin, lasers_λs, las[i].position, W
                 )
                 if any(isnan.(coefs[i]))
                     throw("NaN found in coefs for lenslet $i")
                 end
-                λs[i] = get_wavelength(coefs[i], reference_pixel, axes(laser_spectra[i], 1))
+                λs[i] = get_wavelength(coefs[i], profiles[i].ycenter - profiles[i].bbox.ymin, axes(laser_spectra[i], 1))
 
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
