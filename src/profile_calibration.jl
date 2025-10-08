@@ -49,10 +49,10 @@ function calibrate_profile(
     fill!(lamp_spectra, nothing)
 
     valid_lenslets = map(!isnothing, profiles)
+    progress = nothing
+    profile_calibration_verbose && (progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true))
 
-    progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true)
-
-    @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
+    @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
         if isnothing(profiles[i])
             nothing
         elseif sum(view(lamp, bboxes[i]).precision) == 0
@@ -70,9 +70,9 @@ function calibrate_profile(
                 profiles[i] = nothing
             end
         end
-        next!(progress)
+        profile_calibration_verbose && next!(progress)
     end
-    ProgressMeter.finish!(progress)
+    profile_calibration_verbose && ProgressMeter.finish!(progress)
 
     profiles, lamp_spectra, _ = refine_lamp_model(
         lamp,
@@ -82,7 +82,7 @@ function calibrate_profile(
         extra_width = extra_width,
         profile_loop = profile_loop,
         fit_profile_maxeval = fit_profile_maxeval,
-        verbose = refine_profile_verbose,
+        verbose = profile_calibration_verbose,
         fit_profile_verbose = fit_profile_verbose,
         ntasks = ntasks
     )
@@ -236,8 +236,8 @@ function refine_lamp_model(
                     end
                     if !dont_fit_profile
                         profiles[i] = fit_profile(
-                            deepcopy(resi),
-                            deepcopy(profiles[i]);
+                            resi,
+                            profiles[i];
                             relative = true,
                             maxeval = fit_profile_maxeval,
                             verbose = fit_profile_verbose

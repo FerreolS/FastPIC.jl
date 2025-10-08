@@ -111,7 +111,7 @@ Assertion checks validate parameter consistency and ranges.
     #@assert size(lamp_cfwhms_init, 2) ≤ 2
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
-    refine_profile_verbose::Bool = true
+    profile_calibration_verbose::Bool = true
     lamp_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     outliers_threshold::Float64 = 3.0 # threshold (in sigma) to consider a lenslet spectrum as an outlier when filtering the lamp spectra
 
@@ -199,6 +199,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-
+    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
+    transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
     return profiles, lamp_spectra, template, transmission, lλ
 end
