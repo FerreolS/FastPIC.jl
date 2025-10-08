@@ -35,6 +35,10 @@ struct Profile{T, N, C}
     end
 end
 
+using Functors
+
+@functor Profile
+
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
 Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =

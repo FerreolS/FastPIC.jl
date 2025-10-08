@@ -128,9 +128,9 @@ function fit_laser(
         laser::LaserModel
     )
     vec, re = Optimisers.destructure(laser)
-    f(x) = laser_cost(data, re(x))
-    Newuoa.optimize!(f, vec, 1.0e-5, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
-    return re(vec)
+    f(x) = laser_cost(data, re(x)::typeof(laser))
+     Newuoa.optimize!(f, vec, 1.0e-5, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
+    return re(vec)::typeof(laser)
 end
 
 """

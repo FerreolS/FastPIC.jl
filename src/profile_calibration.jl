@@ -28,7 +28,7 @@ profiles, lamp_spectra = calibrate_profile(lamp_data; calib_params=my_params)
 function calibrate_profile(
         lamp::WeightedArray{T, 2}
         ; calib_params::FastPICParams = FastPICParams(),
-        valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)
+        valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS),
     ) where {T}
 
 
@@ -353,6 +353,7 @@ trust-region algorithm for robust convergence.
 fitted_profile = fit_profile(lamp_data, initial_profile; maxeval=5000, verbose=true)
 ```
 """
+
 function fit_profile(
         data::WeightedArray{T, N},
         profile::Profile{T2, M};
@@ -368,7 +369,7 @@ function fit_profile(
     else
         scale = vcat(10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(fwhmorder))), 10.0 .^ (-(1:(cxorder))))
     end
-    vec, re = Optimisers.destructure(profile)
+    vec, re = Optimisers.destructure!(profile)
 
     d = relative ? data : view(data, profile.bbox)
     f(x) = likelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
