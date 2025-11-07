@@ -12,8 +12,8 @@ function spectral_regridding(
         if !isnothing(profile_wavelength[i])
             widx = findall(x -> x > 0, data_spectra[i].precision)
             if length(widx) > 1
-                itp_value = extrapolate(interpolate((profile_wavelength[i][widx],), data_spectra[i].value[widx], Gridded(Linear())), T(0.0))
-                itp_prec = extrapolate(interpolate((profile_wavelength[i],), data_spectra[i].precision, Gridded(Linear())), T(0.0))
+                itp_value = extrapolate(Interpolations.interpolate((profile_wavelength[i][widx],), data_spectra[i].value[widx], Gridded(Linear())), T(0.0))
+                itp_prec = extrapolate(Interpolations.interpolate((profile_wavelength[i],), data_spectra[i].precision, Gridded(Linear())), T(0.0))
                 regridded_spectra[i] = WeightedArray(itp_value.(λ_grid), max.(T(0.0), itp_prec.(λ_grid)))
             end
         end
