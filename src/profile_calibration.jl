@@ -170,8 +170,8 @@ Performs multiple iterations of profile fitting where each iteration:
 """
 function refine_lamp_model(
         lamp,
-        profiles,
-        ; lamp_extract_restrict = 0,
+        profiles;
+        lamp_extract_restrict = 0,
         ntasks = 4 * Threads.nthreads(),
         kwargs...
     )
@@ -391,28 +391,4 @@ function calibrate_spectral_transmission(
         trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))
     end
     return trms
-end
-
-#=
-Variance estimation from
-Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of a normal approximation to the distribution of the ratio of two independent normal random variables". Statistical Papers
-=#
-
-
-function correct_spectral_transmission(
-        spectra::Vector{<:Union{Nothing, WeightedArray{T, N}}},
-        transmission
-    ) where {T <: Real, N}
-    corrected = similar(spectra)
-    tforeach(findall(!isnothing, spectra); ntasks = 4 * Threads.nthreads()) do i
-        (; value, precision) = transmission[i]
-        spec_val = get_value(spectra[i])
-        spec_prec = spectra[i].precision
-        mean_spec = @. T(spec_val / value)
-        var_spec = @. T(inv(spec_prec) / (value .^ 2) + (spec_val / value) .^ 2 .* inv(precision) / (value .^ 2))
-        corrected[i] = WeightedArray(mean_spec, inv.(var_spec))
-    end
-
-
-    return corrected
 end
