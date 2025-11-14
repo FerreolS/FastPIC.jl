@@ -136,5 +136,6 @@ include("interpolations.jl")
 include("spectral_calibration.jl")
 include("spectra_extraction.jl")
 include("regridding.jl")
+include("io.jl")
 
 end
