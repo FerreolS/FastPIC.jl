@@ -3,12 +3,18 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
 
         # === PRIMARY HDU "TEMPLATE" (Image) === #
 
-        templatehdu = FitsImageHDU(fits, (length(template), 1); bitpix=-64)
+        templatehdu = FitsImageHDU(fits, size(template); bitpix=-64)
 
         templatehdu["EXTNAME"] = ("TEMPLATE", "Common lamp template spectrum")
         templatehdu["HDUNAME"] = ("TEMPLATE", "Common lamp template spectrum")
 
-        write(templatehdu, reshape(template, Val(2))) # 2 dims so DS9 can open it
+        templatehdu["CRVAL1"] = (1.3772996728640695e-6, "Coordinate value at reference point")
+        templatehdu["CRPIX1"] = (1.0, "Pixel coordinate of reference point")
+        templatehdu["CUNIT1"] = ("meter", "Units of coordinate increment and value")
+        templatehdu["CTYPE1"] = ("LINEAR", "Coordinate type code")
+        templatehdu["CDELT1"] = (5.415981589438292e-9, "Coordinate increment at reference point")
+
+        write(templatehdu, template)
 
         # === HDU 2 "PROFILES" (Table) === #
 
