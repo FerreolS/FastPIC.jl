@@ -5,7 +5,11 @@ using LazyArtifacts
 @testset "FastPIC.jl" begin
     @testset "Download test datasets (LazyArtifacts)" begin
         # Replace "test_data" with the actual artifact name
-        test_data_path = artifact"calibrationtestdata"
+        # test_data_path = artifact"calibrationtestdata"
+        # replaced by a version also working when copy pasting in REPL
+        artifact_toml = find_artifacts_toml(normpath(pathof(FastPIC), "../../test/runtests.jl"))
+        artifact_info = artifact_meta("calibrationtestdata", artifact_toml)
+        test_data_path = artifact_path(Base.SHA1(artifact_info["git-tree-sha1"]))
 
         # test_data_path = "test/Data/"
         files = joinpath.(test_data_path, ("wave.fits", "specpos.fits"))
