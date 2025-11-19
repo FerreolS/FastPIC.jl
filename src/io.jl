@@ -24,13 +24,18 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
         size_cfwhm = size(profiles[fi].cfwhm)
         size_cx = size(profiles[fi].cx)
         size_spectral_coefs = size(profiles[fi].spectral_coefs)
+        
+        fi = findfirst(!isnothing, transmission)
+        isnothing(fi) && error("every transmission is set to `nothing`")
+        length_transmission_factors = length(transmission[fi].value)
 
         profilehdu = FitsTableHDU(fits,
             "BBOX" => (Int, 4),
             "YCENTER" => Float64,
-            "CFWHM" => (Float64, size_cfwhm...),
-            "CX" => (Float64, size_cx...),
-            "SPECTRAL_COEFS" => (Float64, size_spectral_coefs...)
+            "CFWHM" => (Float64, size_cfwhm),
+            "CX" => (Float64, size_cx),
+            "SPECTRAL_COEFS" => (Float64, size_spectral_coefs),
+            "TRANSMISSION" => (Float64, (length_transmission_factors, 2))
         )
         
         profilehdu["EXTNAME"] = ("PROFILES", "parametric model of each spectrum")
@@ -54,29 +59,10 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
             isnothing(p) ? fill(NaN, size_spectral_coefs) : p.spectral_coefs
             for p in profiles ]))
 
-        # === HDU 3 "TRANSMISSION" (Image) === #
+        write(profilehdu, "TRANSMISSION" => stack([
+            isnothing(t) ? fill(NaN, length_transmission_factors, 2) : [ t.value ;; t.precision ]
+            for t in transmission ]))
 
-        fi = findfirst(!isnothing, transmission)
-        length_factors = length(transmission[fi])
-
-        transmissionarray = Array{Float64,3}(undef, length(transmission), length_factors, 2)
-
-        for i in 1:length(transmission)
-            if isnothing(transmission[i])
-                transmissionarray[i,:,:] .= NaN
-            else
-                transmissionarray[i,:,1] .= transmission[i].args[1]
-                transmissionarray[i,:,2] .= transmission[i].args[2]
-            end
-        end
-
-        transmissionhdu = FitsImageHDU(fits, size(transmissionarray); bitpix=-64)
-        
-        transmissionhdu["EXTNAME"] = ("TRANSMISSION", "Transmission factors for each lenslet")
-        transmissionhdu["HDUNAME"] = ("TRANSMISSION", "Transmission factors for each lenslet")
-        
-        write(transmissionhdu, transmissionarray)
-        
         nothing
     end
 end
