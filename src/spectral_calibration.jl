@@ -77,7 +77,7 @@ function compute_lasers_amplitudes(
         end
     end
 
-    return inv(A) * b
+    return A \ b
 
 end
 
@@ -187,7 +187,9 @@ laser_calibration(order, ref, lasers_λs, laser_positions, Wpos) = laser_calibra
 
 function laser_calibration(::Val{order}, ::Val{lines}, ref, lasers_λs, laser_positions, Wpos) where {order, lines}
     A = MMatrix{lines, order + 1}(((laser_positions .- ref) ./ ref) .^ reshape(0:order, 1, :))
-    coefs = inv(A' * Wpos * A) * A' * Wpos * lasers_λs
+    lhs = A' * Wpos * A
+    rhs = A' * Wpos * lasers_λs
+    coefs = lhs \ rhs
     return coefs
 end
 
