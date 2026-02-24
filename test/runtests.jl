@@ -11,7 +11,7 @@ using LazyArtifacts
         files = joinpath.(test_data_path, ("wave.fits", "specpos.fits"))
 
         using StatsBase
-        using EasyFITS
+        using AstroFITS
         using WeightedData
 
         # ENV["JULIA_DEBUG"] = Main.FastPIC
