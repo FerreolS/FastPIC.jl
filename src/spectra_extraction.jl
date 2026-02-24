@@ -94,11 +94,17 @@ function extract_spectra(
 
     if refinement_loop > 0
         if N == 3
+            nframes = size(data, 3)
+            foreach(findall(!isnothing, profiles)) do i
+                ny = size(profiles[i].bbox, 2)
+                spectra[i] = WeightedArray(zeros(T2, ny, nframes), zeros(T2, ny, nframes))
+            end
             for t in axes(data, 3)
                 #   tforeach(axes(data, 3); ntasks = ntasks) do t
                 _, spctr, _ = refine_lamp_model(view(data, :, :, t), profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
                 foreach(findall(!isnothing, profiles)) do i
-                    spectra[i, t] .= spctr[i]
+                    spectra[i].value[:, t] .= spctr[i].value
+                    spectra[i].precision[:, t] .= spctr[i].precision
                 end
             end
         else
