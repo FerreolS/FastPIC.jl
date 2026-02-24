@@ -40,6 +40,15 @@ using LazyArtifacts
         #        coefs, template, transmission, lλ, valid_lenslets = spectral_calibration(lasers, lamp_spectra, profiles, calib_params = calib_params)
 
         profiles, lamp_spectra, template, transmission, lλ = calibrate(lamp, lasers, calib_params = calib_params, valid_lenslets = valid_lenslets)
+
+        @test length(profiles) == NLENS
+        @test length(lamp_spectra) == NLENS
+        @test length(template) == length(lλ)
+
+        valid = findall(!isnothing, profiles)
+        @test !isempty(valid)
+        @test all(isfinite, template)
+        @test all(i -> all(isfinite, get_value(transmission[i])), valid)
     end
     # Write your tests here.
 end
