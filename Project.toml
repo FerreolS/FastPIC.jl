@@ -1,7 +1,7 @@
 name = "FastPIC"
 uuid = "b925a9a2-b992-4366-b7a4-c4262a454b9a"
-authors = ["FerreolS <ferreol.soulez@univ-lyon1.fr>"]
 version = "0.0.0"
+authors = ["FerreolS <ferreol.soulez@univ-lyon1.fr>"]
 
 [deps]
 AstroFITS = "34e54ef0-c5bf-48ab-9e5d-cca51f35ed77"
@@ -29,9 +29,6 @@ TwoDimensional = "1907e7ba-7586-4310-a2ba-dd01462aeb50"
 WeightedData = "198d7fc6-4dbd-4d01-be45-be9677e11b0d"
 ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
 
-[sources]
-WeightedData = {url = "https://github.com/FerreolS/WeightedData.jl"}
-
 [compat]
 AstroFITS = "1"
 Atomix = "1.1.2"
@@ -48,15 +45,15 @@ Optimisers = "0.4"
 Parameters = "0.12"
 ProgressMeter = "1"
 Random = "1"
-ScatteredInterpolation = "0.3.6"
-Setfield = "1.1.2"
+ScatteredInterpolation = "0.3"
+Setfield = "0.8.3"
 SparseArrays = "1"
 StaticArrays = "1"
-StatsBase = "0.34"
-StructuredArrays = "0.2.22"
+StatsBase = "0.33.21"
+StructuredArrays = "0.2"
 Test = "1"
 TwoDimensional = "0.5"
-WeightedData = "0"
+WeightedData = "0.3.2"
 ZippedArrays = "0.2"
 julia = "1.10"
 

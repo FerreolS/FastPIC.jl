@@ -13,6 +13,7 @@ using LazyArtifacts
         using StatsBase
         using AstroFITS
         using WeightedData
+        import WeightedData: WeightedArray, get_value, get_precision
 
         # ENV["JULIA_DEBUG"] = Main.FastPIC
 

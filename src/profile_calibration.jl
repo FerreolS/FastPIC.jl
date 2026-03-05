@@ -1,3 +1,5 @@
+import WeightedData: ScaledL2Loss, loglikelihood
+
 """
     calibrate_profile(lamp::WeightedArray{T,2}; calib_params::FastPICParams = FastPICParams(), valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)) where {T}
 
@@ -371,7 +373,7 @@ function fit_profile(
     vec, re = Optimisers.destructure(profile)
 
     d = relative ? data : view(data, profile.bbox)
-    f(x) = likelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
+    f(x) = loglikelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
     Newuoa.optimize!(f, vec, 1, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
     return re(vec)
 end

@@ -101,7 +101,7 @@ function laser_cost(
     images = hcat(compute_laser_images(lasers, axes(data, 1)), ones(length(data)))
     amplitude = compute_lasers_amplitudes(Val(size(images, 2)), images, data)
     model = images * amplitude
-    return likelihood(data, model)
+    return loglikelihood(data, model)
 end
 
 
@@ -366,7 +366,7 @@ function spectral_refinement(coefs, lamp, lamp_template, wavelength, reference_p
         wvlngth = get_wavelength(x, reference_pixel, axes(lamp, 1))
         lamp_spectrum = lamp_model(wvlngth, lamp_template, wavelength)
         laser_spectrum = laser_model(wvlngth, fwhm_pixels, lasers_λs, laser)
-        return likelihood(ScaledL2Loss(), lamp, lamp_spectrum) + likelihood(laser, laser_spectrum)
+        return loglikelihood(ScaledL2Loss(), lamp, lamp_spectrum) + loglikelihood(laser, laser_spectrum)
     end
     #scale = 1e-7 .* vcat(10. .^ (-(1:length(coefs))))
     scale = 1.0e-8 .* ones(length(coefs))
