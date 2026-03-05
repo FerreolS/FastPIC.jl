@@ -88,7 +88,7 @@ function extract_spectra(
         extra_width = 5
     ) where {T <: Real, N, T2 <: Real, M, C}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
-    profile_type = ZippedVector{WeightedValue{T2}, 2, true, Tuple{Array{T2, N - 1}, Array{T2, N - 1}}}
+    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
     fill!(spectra, nothing)
 
@@ -97,7 +97,7 @@ function extract_spectra(
             nframes = size(data, 3)
             foreach(findall(!isnothing, profiles)) do i
                 ny = size(profiles[i].bbox, 2)
-                spectra[i] = WeightedArray(zeros(T2, ny, nframes), zeros(T2, ny, nframes))
+                spectra[i] = WeightedArray(zeros(T, ny, nframes), zeros(T, ny, nframes))
             end
             for t in axes(data, 3)
                 #   tforeach(axes(data, 3); ntasks = ntasks) do t
