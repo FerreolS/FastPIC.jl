@@ -121,6 +121,7 @@ using Atomix,
     ZippedArrays
 
 import Accessors: @reset
+import WeightedData: ScaledL2Loss, loglikelihood, get_value, get_precision
 
 export FastPICParams,
     calibrate_profile,

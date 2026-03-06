@@ -1,5 +1,3 @@
-import WeightedData: ScaledL2Loss, loglikelihood
-
 """
     calibrate_profile(lamp::WeightedArray{T,2}; calib_params::FastPICParams = FastPICParams(), valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)) where {T}
 
