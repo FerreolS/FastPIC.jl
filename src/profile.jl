@@ -253,7 +253,7 @@ function filter_spectra_outliers!(
     valid_spectra = findall(!isnothing, spectra)
     q = hcat([spectra[i].value for i in valid_spectra ]...)
     m = median(q; dims = 2) # median spectrum
-    s = mad.(eachslice(q, dims = 1))
+    s = mad.(eachslice(q, dims = 1); normalize = true)
     bad = @. !((m - threshold * s) <= q <= (m + threshold * s))
     for i in eachindex(IndexCartesian(), bad)
         if bad[i]
