@@ -112,7 +112,6 @@ using Atomix,
     Parameters,
     ProgressMeter,
     Random,
-    Setfield,
     SparseArrays,
     StaticArrays,
     StatsBase,
@@ -120,6 +119,8 @@ using Atomix,
     TwoDimensional,
     WeightedData,
     ZippedArrays
+
+import Accessors: @reset
 
 export FastPICParams,
     calibrate_profile,
