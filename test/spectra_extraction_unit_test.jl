@@ -22,8 +22,8 @@
 
     @testset "extract_spectrum recovers known amplitudes" begin
         s1 = FastPIC.extract_spectrum(data, p1)
-        @test get_value(s1) ≈ α1 atol = 1e-10
-        @test get_precision(s1) ≈ vec(sum(m1 .^ 2; dims = 1)) atol = 1e-10
+        @test get_value(s1) ≈ α1 atol = 1.0e-10
+        @test get_precision(s1) ≈ vec(sum(m1 .^ 2; dims = 1)) atol = 1.0e-10
     end
 
     @testset "extract_spectrum nonnegative masks negative bins" begin
@@ -50,8 +50,8 @@
         spectra = FastPIC.extract_spectra(data, profiles; transmission = tr, nonnegative = false, ntasks = 1)
 
         @test spectra[2] === nothing
-        @test get_value(spectra[1]) ≈ α1 ./ 2 atol = 1e-10
-        @test get_value(spectra[3]) ≈ α2 ./ 4 atol = 1e-10
+        @test get_value(spectra[1]) ≈ α1 ./ 2 atol = 1.0e-10
+        @test get_value(spectra[3]) ≈ α2 ./ 4 atol = 1.0e-10
     end
 
     @testset "correct_spectral_transmission propagates value and precision" begin
@@ -70,8 +70,8 @@
         corrected = FastPIC.correct_spectral_transmission(specs, trans)
 
         @test corrected[2] === nothing
-        @test get_value(corrected[1]) ≈ [5.0, 5.0] atol = 1e-12
-        @test get_value(corrected[3]) ≈ [1.0, 5.0] atol = 1e-12
+        @test get_value(corrected[1]) ≈ [5.0, 5.0] atol = 1.0e-12
+        @test get_value(corrected[3]) ≈ [1.0, 5.0] atol = 1.0e-12
         @test all(get_precision(corrected[1]) .> 0)
         @test all(get_precision(corrected[3]) .> 0)
     end
