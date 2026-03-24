@@ -93,7 +93,7 @@ function build_centers(profiles, laser_models, valid)
     return centers
 end
 
-function find_lenslet_position(profiles, laser_models; halflensequence = (1, 5, 15, 25, 150), maxeval = 1000, verbose = false, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
+function find_lenslet_position(profiles, laser_models; halflensequence = (1, 5, 15, 25, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     valid = findall(!isnothing, profiles)
     lensletmap = get_lensletmap(profiles)
     centers = build_centers(profiles, laser_models, valid)
@@ -107,9 +107,9 @@ function find_lenslet_position(profiles, laser_models; halflensequence = (1, 5, 
 
     for hl in halflensequence
         grid = build_grid(hl; lensletmap = lensletmap, center = x[1:2], scale = x[3], θ = x[4])
-        adjust_grid_param!(kdtree, grid, x; maxeval = maxeval, verbose = verbose)
+        adjust_grid_param!(kdtree, grid, x; maxeval = maxeval, verbose = (verbose > 1))
     end
-    verbose && @info "Final grid parameters: offset=($(x[1]), $(x[2])), scale=$(x[3]), θ=$(rem2pi(x[4], RoundNearest)))"
+    (verbose > 0) && @info "Final grid parameters: offset=($(x[1]), $(x[2])), scale=$(x[3]), θ=$(rem2pi(x[4], RoundNearest)))"
     grid = transform_grid(build_grid(150; center = x[1:2], scale = x[3], θ = x[4]), x)
     gridtree = KDTree(grid)
     idx, _ = knn(gridtree, centers, 1)

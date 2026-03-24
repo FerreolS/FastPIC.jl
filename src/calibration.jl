@@ -128,6 +128,15 @@ Assertion checks validate parameter consistency and ranges.
     spectral_calibration_verbose::Bool = true
     spectral_recalibration_regul::Float64 = 1.0 # Tikhonov regularization parameter for spectral recalibration
 
+    # Position of the lenslets parameters
+    position_verbose::Int = 1
+    position_maxeval::Int = 1000
+    position_scale::Float64 = 15.0
+    position_θ::Float64 = 0.0
+    position_offset::Union{Nothing, Vector{Float64}} = nothing
+    position_center::Vector{Float64} = [1024.0, 1024.0]
+
+
     ntasks::Int = 4 * Threads.nthreads()
 end
 
@@ -199,7 +208,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, las = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-    profiles = find_lenslet_position(profiles, las; verbose = true)
+    profiles = find_lenslet_position(profiles, las; verbose = calib_params.position_verbose, maxeval = calib_params.position_maxeval, scale = calib_params.position_scale, θ = calib_params.position_θ, offset = calib_params.position_offset, center = calib_params.position_center)
     lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
     transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
     return profiles, lamp_spectra, template, transmission, lλ

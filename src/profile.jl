@@ -44,14 +44,12 @@ end
 
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
-Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
-    Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
+# Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) = Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
 
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
     Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing)
 
-Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
-
+#Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(; normalize = true) =
     get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox, ycenter, cfwhm, cx)

@@ -440,14 +440,14 @@ function recalibrate_wavelengths(
                 valid_lenslets[i] = false
                 profile = nothing
             end
-            verbose && next!(progressbar)
+            isnothing(progressbar) || next!(progressbar)
             return profile
         end
 
         template, transmission = estimate_template(profiles, λ, lamp_spectra)
 
     end
-    verbose && (finish!(progressbar))
+    isnothing(progressbar) || finish!(progressbar)
     return profiles, template, transmission
 end
 
@@ -580,8 +580,8 @@ function laser_calibration!(
                 profiles[i] = nothing
             end
         end
-        spectral_calibration_verbose && next!(progressbar)
+        isnothing(progressbar) || next!(progressbar)
     end
-    spectral_calibration_verbose && finish!(progressbar)
+    isnothing(progressbar) || finish!(progressbar)
     return laser_spectra, las, λs
 end

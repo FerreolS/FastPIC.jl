@@ -70,9 +70,9 @@ function calibrate_profile(
                 profiles[i] = nothing
             end
         end
-        profile_calibration_verbose && next!(progress)
+        isnothing(progress) || next!(progress)
     end
-    profile_calibration_verbose && ProgressMeter.finish!(progress)
+    isnothing(progress) || ProgressMeter.finish!(progress)
 
     profiles, lamp_spectra, _ = refine_lamp_model(
         lamp,
@@ -281,10 +281,10 @@ function refine_lamp_model(
                     lamp_spectra[i] = nothing
                 end
             end
-            verbose && next!(progress)
+            isnothing(progress) || next!(progress)
         end
     end
-    verbose && ProgressMeter.finish!(progress)
+    isnothing(progress) || ProgressMeter.finish!(progress)
 
 
     model_precision[.!isfinite.(model_precision)] .= T(0)
