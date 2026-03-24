@@ -79,14 +79,14 @@ Parallelized version of `extract_spectrum` for processing multiple traces simult
 """
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::Vector{Union{Profile{T2, M, C}, Nothing}};
-        transmission = FastUniformArray(T2(1), length(profiles)),
+        profiles::Vector{<:Union{Nothing, Profile}};
+        transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
         ntasks = 4 * Threads.nthreads(),
         refinement_loop = 0,
         extra_width = 5
-    ) where {T <: Real, N, T2 <: Real, M, C}
+    ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
@@ -121,7 +121,7 @@ function extract_spectra(
 
     if Base.typesplit(eltype(transmission), Nothing) <: Real
         @localize spectra  tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
-            spectra[i] = spectra[i] ./ T2(transmission[i])
+            spectra[i] = spectra[i] ./ T(transmission[i])
         end
     else
         spectra = correct_spectral_transmission(spectra, transmission)
@@ -137,11 +137,14 @@ Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of 
 
 
 function correct_spectral_transmission(
-        spectra::Vector{<:Union{Nothing, WeightedArray{T, N}}},
+        spectra::Vector{<:Union{Nothing, WeightedArray}},
         transmission
-    ) where {T <: Real, N}
+    )
     corrected = similar(spectra)
     fill!(corrected, nothing)
+    first_valid = findfirst(!isnothing, spectra)
+    isnothing(first_valid) && return corrected
+    T = eltype(get_value(spectra[first_valid]))
     tforeach(findall(!isnothing, spectra); ntasks = 4 * Threads.nthreads()) do i
         (; value, precision) = transmission[i]
         spec_val = get_value(spectra[i])

@@ -129,8 +129,7 @@ export FastPICParams,
     calibrate_profile,
     spectral_calibration,
     calibrate,
-    get_wavelength,
-    spectral_regridding
+    get_wavelength
 
 
 include("calibration.jl")
