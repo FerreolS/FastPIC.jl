@@ -95,7 +95,8 @@ See Project.toml for complete dependency list and version requirements.
 """
 module FastPIC
 
-using Atomix,
+using Accessors,
+    Atomix,
     BandedMatrices,
     ChunkSplitters,
     ConcreteStructs,
@@ -104,6 +105,7 @@ using Atomix,
     InterpolationKernels,
     Interpolations,
     LinearAlgebra,
+    NearestNeighbors,
     OhMyThreads,
     Optimisers,
     OptimPackNextGen,
@@ -137,6 +139,6 @@ include("profile_calibration.jl")
 include("interpolations.jl")
 include("spectral_calibration.jl")
 include("spectra_extraction.jl")
-include("regridding.jl")
+include("lenslet_position.jl")
 
 end

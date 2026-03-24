@@ -508,7 +508,7 @@ function spectral_calibration(
         ntasks = ntasks,
         verbose = spectral_calibration_verbose
     )
-    return profiles, template, transmission, lλ
+    return profiles, template, transmission, lλ, las
 end
 
 

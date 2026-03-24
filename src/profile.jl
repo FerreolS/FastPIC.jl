@@ -27,11 +27,18 @@ struct Profile{T, N, C}
     cfwhm::Array{Float64, N}
     cx::Vector{Float64}
     spectral_coefs::C
+    position::Tuple{Float64, Float64}
     function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector, spectral_coefs::C) where {N, T2 <: Real, C <: Union{Nothing, <:AbstractVector{Float64}}}
         @assert T <: Real
         size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
         length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
-        return new{T, N, C}(T, bbox, ycenter, collect(cfwhm), collect(cx), spectral_coefs)
+        return new{T, N, C}(T, bbox, ycenter, collect(cfwhm), collect(cx), spectral_coefs, (0.0, 0.0))
+    end
+    function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector, spectral_coefs::C, position::Tuple{Float64, Float64}) where {N, T2 <: Real, C <: Union{Nothing, <:AbstractVector{Float64}}}
+        @assert T <: Real
+        size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
+        length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
+        return new{T, N, C}(T, bbox, ycenter, collect(cfwhm), collect(cx), spectral_coefs, position)
     end
 end
 
