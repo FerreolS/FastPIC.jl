@@ -207,9 +207,12 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = trues(calib_params.NLENS))
     profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
-    profiles, template, transmission, lλ, las = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-    profiles = find_lenslet_position(profiles, las; verbose = calib_params.position_verbose, maxeval = calib_params.position_maxeval, scale = calib_params.position_scale, θ = calib_params.position_θ, offset = calib_params.position_offset, center = calib_params.position_center)
+    profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
+    lenslet_index = findall(!isnothing, profiles)
+    profiles = profiles[lenslet_index]
+    transmission = transmission[lenslet_index]
+    profiles, lenslet_width = find_lenslet_position!(profiles; verbose = calib_params.position_verbose, maxeval = calib_params.position_maxeval, scale = calib_params.position_scale, θ = calib_params.position_θ, offset = calib_params.position_offset, center = calib_params.position_center)
     lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
     transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
-    return profiles, lamp_spectra, template, transmission, lλ
+    return profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width
 end

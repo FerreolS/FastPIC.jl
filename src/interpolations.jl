@@ -123,7 +123,12 @@ function build_sparse_interpolation_integration_matrix(knots, lowersample, upper
     return sparse(L[1:(c - 1)], C[1:(c - 1)], V[1:(c - 1)], lin, col)
 end
 
+build_sparse_interpolation_integration_matrix(knots, profile::Profile) = build_sparse_interpolation_integration_matrix(Float64, knots, profile)
 
+function build_sparse_interpolation_integration_matrix(::Type{T}, knots, profile::Profile; kernel::Kernel{T, N} = CatmullRomSpline{T}()) where {T, N}
+    lower, upper = get_lower_uppersamples(get_wavelength(profile))
+    return build_sparse_interpolation_integration_matrix(knots, lower, upper; kernel = kernel)
+end
 """
     find_index(knots::AbstractRange, sample)
 

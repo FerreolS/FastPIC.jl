@@ -200,23 +200,10 @@ This function computes an optimal shift in the X direction (perpendicular to the
 function estimate_shift(
         data::WeightedArray{T, N},
         profiles::Vector{<:Union{Nothing, Profile}},
-        profile_wavelength::Vector{<:Union{Nothing, AbstractVector{Float64}}},
-        transmission::Vector{Float64},
-        template::Vector{Float64},
-        λ::AbstractVector{Float64};
+        models::Vector{<:Union{Nothing, Vector{Float64}}};
         ntasks = 4 * Threads.nthreads(),
         restrict = 0,
     ) where {T <: Real, N}
-
-
-    models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
-    fill!(models, nothing)
-
-    tforeach(findall(!isnothing, profile_wavelength); ntasks = ntasks) do i
-        MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
-        models[i] = (MI * template) .* transmission[i]
-
-    end
 
 
     loss(shift) = tmapreduce(+, findall(!isnothing, profiles); outputtype = Float64, ntasks = ntasks) do idx
@@ -231,4 +218,25 @@ function estimate_shift(
 
     shift = OptimPackNextGen.BraDi.maximize(loss, [-0.5, 0.0, 0.5])
     return shift[1]
+end
+
+function make_models(
+        profiles::Vector{<:Union{Nothing, Profile}},
+        transmission::Vector{Float64},
+        template::Vector{Float64},
+        λ::AbstractVector{Float64};
+        ntasks = 4 * Threads.nthreads()
+    )
+
+    models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
+    fill!(models, nothing)
+    profile_wavelength = get_wavelength(profiles)
+
+    tforeach(findall(!isnothing, profile_wavelength); ntasks = ntasks) do i
+        MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
+        models[i] = (MI * template) .* transmission[i]
+
+    end
+
+    return models
 end

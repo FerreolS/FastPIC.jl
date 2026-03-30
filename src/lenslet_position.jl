@@ -92,11 +92,24 @@ function build_centers(profiles, laser_models, valid)
     end
     return centers
 end
+function build_centers(profiles, valid)
+    nb_valid = length(valid)
+    centers = zeros(Float64, 2, nb_valid)
+    for (n, i) in enumerate(valid)
+        centers[1, n] = profiles[i].cx[1]
+        centers[2, n] = profiles[i].ycenter
+    end
+    return centers
+end
 
-function find_lenslet_position(profiles, laser_models; halflensequence = (1, 5, 15, 25, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
+function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     valid = findall(!isnothing, profiles)
     lensletmap = get_lensletmap(profiles)
-    centers = build_centers(profiles, laser_models, valid)
+    if isnothing(laser_models)
+        centers = build_centers(profiles, valid)
+    else
+        centers = build_centers(profiles, laser_models, valid)
+    end
     kdtree = KDTree(centers)
 
     centeridx, _ = knn(kdtree, center, 1)
@@ -117,5 +130,5 @@ function find_lenslet_position(profiles, laser_models; halflensequence = (1, 5, 
     for (n, i) in enumerate(valid)
         Accessors.@reset profiles[i].position .= tuple(positions[:, n]...)
     end
-    return profiles
+    return profiles, x[3]
 end

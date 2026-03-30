@@ -29,7 +29,7 @@
     valid_lenslets[test_indices] .= true
 
     calib_params = FastPICParams(; nλ = nλ)
-    profiles, lamp_spectra, template, transmission, lλ = calibrate(
+    profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width = calibrate(
         lamp,
         lasers,
         calib_params = calib_params,

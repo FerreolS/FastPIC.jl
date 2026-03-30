@@ -126,8 +126,7 @@ import Accessors: @reset
 import WeightedData: ScaledL2Loss, loglikelihood, get_value, get_precision
 
 export FastPICParams,
-    calibrate_profile,
-    spectral_calibration,
+    extract_spectra,
     calibrate,
     get_wavelength
 

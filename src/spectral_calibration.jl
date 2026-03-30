@@ -263,8 +263,7 @@ function estimate_template(
     b = zeros(Float64, nλ)
     foreach(findall(valid_lenslets)) do idx
         (; value, precision) = spectra[idx]
-        profile_wavelength = get_wavelength(profiles[idx])
-        MI[idx] = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength)...)
+        MI[idx] = build_sparse_interpolation_integration_matrix(λ, profiles[idx])
         b .+= Array(MI[idx]' * (precision .* value))
         A .+= Array(MI[idx]' * (precision .* MI[idx]))
     end
