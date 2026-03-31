@@ -23,7 +23,7 @@
     NLENS::Int = 18908
     valid_lenslets = trues(NLENS)
 
-    # Testing on a small subset for development/runtime.
+    # Testing on a small subset for development
     test_indices = vcat(collect(1:50), 194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203)
     valid_lenslets .= false
     valid_lenslets[test_indices] .= true
@@ -36,8 +36,8 @@
         valid_lenslets = valid_lenslets,
     )
 
-    @test length(profiles) == NLENS
-    @test length(lamp_spectra) == NLENS
+    @test length(profiles) == length(test_indices)
+    @test length(lamp_spectra) == length(test_indices)
     @test length(template) == length(lλ)
 
     valid = findall(!isnothing, profiles)

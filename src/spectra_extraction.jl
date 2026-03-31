@@ -143,7 +143,7 @@ function correct_spectral_transmission(
     corrected = similar(spectra)
     fill!(corrected, nothing)
     first_valid = findfirst(!isnothing, spectra)
-    isnothing(first_valid) && return corrected
+    spectra[first_valid] === nothing && return corrected
     T = eltype(get_value(spectra[first_valid]))
     tforeach(findall(!isnothing, spectra); ntasks = 4 * Threads.nthreads()) do i
         (; value, precision) = transmission[i]
