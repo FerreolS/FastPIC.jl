@@ -97,6 +97,7 @@ module FastPIC
 
 using Accessors,
     Atomix,
+    AbstractFFTs,
     BandedMatrices,
     ChunkSplitters,
     ConcreteStructs,
@@ -105,7 +106,9 @@ using Accessors,
     InterpolationKernels,
     Interpolations,
     LinearAlgebra,
+    LinOps,
     NearestNeighbors,
+    NonuniformFFTs,
     OhMyThreads,
     Optimisers,
     OptimPackNextGen,
@@ -123,12 +126,9 @@ using Accessors,
     ZippedArrays
 
 import Accessors: @reset
-import WeightedData: ScaledL2Loss, loglikelihood, get_value, get_precision
+import WeightedData: ScaledL2Loss, get_value, loglikelihood
 
-export FastPICParams,
-    extract_spectra,
-    calibrate,
-    get_wavelength
+export FastPICParams, calibrate, extract_spectra, get_wavelength
 
 
 include("calibration.jl")

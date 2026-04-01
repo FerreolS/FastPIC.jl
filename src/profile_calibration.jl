@@ -223,7 +223,9 @@ function refine_lamp_model(
         end
         #@localize profiles @localize lamp_spectra @localize res @localize progress
         @localize res @localize progress OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
-            if isnothing(profiles[i])
+            if (profiles[i] === nothing)
+                nothing
+            elseif (lamp_spectra[i] === nothing)
                 nothing
             else
                 try
@@ -242,10 +244,10 @@ function refine_lamp_model(
                             maxeval = fit_profile_maxeval,
                             verbose = fit_profile_verbose
                         )
-                    end
-                    if any(isnan.(profiles[i].cfwhm))
-                        profiles[i] = nothing
-                        error("NaN found in cfwhm for lenslet $i")
+                        if any(isnan.(profiles[i].cfwhm))
+                            profiles[i] = nothing
+                            error("NaN found in cfwhm for lenslet $i")
+                        end
                     end
                     lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict, nonnegative = true)
                     if any(isnan.(lamp_spectra[i]))
