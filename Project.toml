@@ -16,6 +16,7 @@ Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 ChunkSplitters = "ae650224-84b6-46f8-82ea-d812ca08434e"
 ConcreteStructs = "2569d6c7-a4a2-43d3-a901-331e8e4be471"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 InterpolationKernels = "16730964-a2ec-11e9-36fa-47a4f82bfac6"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 LinOps = "12e01e97-5e40-5c5d-ad16-3cd76309c2d9"
@@ -37,9 +38,6 @@ TwoDimensional = "1907e7ba-7586-4310-a2ba-dd01462aeb50"
 WeightedData = "198d7fc6-4dbd-4d01-be45-be9677e11b0d"
 ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
 
-[sources]
-LinOps = {rev = "master", url = "https://github.com/FerreolS/LinOps.jl"}
-
 [compat]
 AbstractFFTs = "1.5.0"
 Accessors = "0.1"
@@ -50,9 +48,9 @@ Bessels = "0.2"
 ChunkSplitters = "3"
 ConcreteStructs = "0.2"
 DelimitedFiles = "1"
+DifferentiationInterface = "0.7"
 InterpolationKernels = "0.2"
 Interpolations = "0.16"
-LinOps = "0.1"
 LinearAlgebra = "1"
 NearestNeighbors = "0.4.27"
 NonuniformFFTs = "0.9.1"
