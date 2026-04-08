@@ -48,6 +48,8 @@ end
 
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
     Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing)
+Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector, position::NTuple{2}) =
+    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing, position)
 
 #Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
@@ -91,6 +93,9 @@ function get_profile(
         cx::Vector{Float64}
     ) where {N, T, S}
 
+
+    0 < N < 3 || error("get_profile : N must be 1 or 2")
+
     xorder = length(cx)
     fwhmorder = size(cfwhm, 1)
 
@@ -105,15 +110,15 @@ function get_profile(
 
     fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
 
+
     if false
         fw = @. T(-1 / (2 * (width^2) * fwhm2sigma2))
         xc = T.(ax .- xcenter')
         if N == 1
             dist = (xc .^ 2) .* reshape(fw, 1, :)
-        elseif N == 2
+        else # N == 2
             dist = min.(xc, 0) .^ 2 .* reshape(fw[:, 1], 1, :) .+ max.(xc, 0) .^ 2 .* reshape(fw[:, 2], 1, :)
-        else
-            error("get_profile : N must be 1 or 2")
+
         end
 
 
@@ -125,13 +130,10 @@ function get_profile(
             for i in axes(img, 1) #5
                 d = (ax[i] - xcenter[j])
                 if N == 1
-                    dist = T(-d^2 / (2 * (width[j]^2 * fwhm2sigma2)))
-                elseif N == 2
-                    dist = T(- d^2 / (2 * (width[j, ifelse(d < 0, 1, 2)]^2 * fwhm2sigma2)))
-                else
-                    error("get_profile : N must be 1 or 2")
+                    img[i, j] = T(gaussian(width[j], d))
+                else # N == 2
+                    img[i, j] = T(gaussian(width[j, ifelse(d < 0, 1, 2)], d))
                 end
-                img[i, j] = exp(dist)
             end
         end
     end
@@ -139,6 +141,11 @@ function get_profile(
         return img ./ sum(img; dims = 1)
     end
     return img
+end
+
+@inline function gaussian(width, d::T) where {T}
+    fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
+    return exp(-d^2 / T(2 * width^2 * fwhm2sigma2))
 end
 
 """
@@ -156,7 +163,7 @@ and offsets determined by the bbox_params configuration.
 # Returns
 - `BoundingBox{Int}` if valid, `missing` if out of detector bounds
 """
-function get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams = BboxParams())
+function get_bbox(center_x::Real, center_y::Real; bbox_params::BboxParams = BboxParams())
     @unpack_BboxParams bbox_params
     bbox = round(
         Int,

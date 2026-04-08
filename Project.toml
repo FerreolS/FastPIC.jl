@@ -52,6 +52,7 @@ DifferentiationInterface = "0.7"
 InterpolationKernels = "0.2"
 Interpolations = "0.16"
 LinearAlgebra = "1"
+LinOps = "0.1"
 NearestNeighbors = "0.4.27"
 NonuniformFFTs = "0.9.1"
 OhMyThreads = "0.8"
@@ -69,3 +70,6 @@ TwoDimensional = "0.5"
 WeightedData = "0.3"
 ZippedArrays = "0.2"
 julia = "1.10"
+
+[sources]
+LinOps = {url="https://github.com/FerreolS/LinOps.jl"}

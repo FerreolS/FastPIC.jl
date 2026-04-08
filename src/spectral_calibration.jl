@@ -129,7 +129,7 @@ function fit_laser(
     )
     vec, re = Optimisers.destructure(laser)
     f(x) = laser_cost(data, re(x))
-    Newuoa.optimize!(f, vec, 1.0e-5, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
+    Newuoa.optimize!(f, vec, 1.0e-3, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
     return re(vec)
 end
 
@@ -541,8 +541,10 @@ function laser_calibration!(
     ) where {L}
     @unpack_FastPICParams calib_params
 
+    NLENS = length(profiles)
     laser_spectra = Vector{L}(undef, NLENS)
-    laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
+    #laser_model = LaserModel([7.0, 20.0, 35.0], [2.0, 2.0, 2.0])
+    laser_model = LaserModel(laser_line_pix, laser_line_width)
     λs = Vector{Union{Nothing, Vector{Float64}}}(undef, NLENS)
     las = Vector{typeof(laser_model)}(undef, NLENS)
 
@@ -562,7 +564,7 @@ function laser_calibration!(
                     throw("Laser position too far from initial guess for lenslet $i")
                 end
                 W = get_laser_precision(las[i], laser_spectra[i])
-                if any(diag(W) .< 1.0e-4)
+                if any(diag(W) .< 1.0e-6)
                     throw("W singular  for lenslet $i")
                 end
                 coefs = laser_calibration(

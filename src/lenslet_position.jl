@@ -4,10 +4,59 @@ function get_lensletmap(profiles)
         if isnothing(p)
             continue
         end
-        lensletmap[p.bbox] .= i
+        mask = view(lensletmap, p.bbox) .> 0
+        view(lensletmap, p.bbox) .= i
+        view(lensletmap, p.bbox)[mask] .= 100000
     end
     return lensletmap
 end
+
+
+"""
+    get_meanx(data::WeightedArray{T,N}, bbox; relative=false) where {T,N}
+
+Compute the precision-weighted mean position along the first axis.
+
+Calculates the centroid position using: `Σ(x * √w * I) / Σ(√w * I)`
+where x is position, w is precision (inverse variance), and I is intensity.
+
+# Arguments
+- `data::WeightedArray{T,N}`: Input weighted data
+- `bbox`: Bounding box defining the region of interest
+- `relative::Bool = false`
+
+# Returns
+- `Float64`: Precision-weighted mean position along the first axis
+
+# Examples
+```julia
+center_x = get_meanx(detector_data, profile_bbox)
+```
+"""
+function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
+    (; value, precision) = view(data, bbox)
+
+    if relative
+        ax = axes(value, 1)
+    else
+        ax = axes(bbox, 1)
+    end
+
+    return sum(value .* sqrt.(precision) .* ax) ./ sum(sqrt.(precision) .* value)
+end
+
+function get_maxx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
+    (; value, precision) = view(data, bbox)
+
+    if relative
+        ax = axes(value, 1)
+    else
+        ax = axes(bbox, 1)
+    end
+
+    return ax[argmax(sum(value .* precision, dims = 2) ./ sum(precision, dims = 2))[1]]
+end
+
 
 function transform_grid(grid, offset, scale, θ)
     R = @SArray [
@@ -15,6 +64,31 @@ function transform_grid(grid, offset, scale, θ)
         sin(θ) cos(θ)
     ]
     return scale .* (R * grid) .+ offset
+end
+
+function filter_grid(grid)
+    mask = 1 .< grid[1, :] .< 2048 .&& 1 .< grid[2, :] .< 2048
+    grid = grid[:, mask]
+    return grid
+end
+
+function build_boxes(grid, lamp; threshold = 2, bboxparams = BboxParams())
+    medlamp = median(lamp.value)
+    mask = trues(size(grid, 2))
+    boxes = Vector{BoundingBox{Int}}(undef, size(grid, 2))
+    @inbounds   for i in axes(grid, 2)
+        box = get_bbox(grid[1, i], grid[2, i]; bbox_params = bboxparams)
+        if ismissing(box)
+            mask[i] = false
+            continue
+        end
+        if mean(view(lamp, box)).value < medlamp / threshold
+            mask[i] = false
+            continue
+        end
+        boxes[i] = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
+    end
+    return grid[:, mask], boxes[mask]
 end
 
 function transform_grid(grid, x)
@@ -36,7 +110,7 @@ function adjust_grid_param!(
     g = Base.Fix1(transform_grid, grid0)
     h = Base.Fix1(dist_grid, kdtree)
 
-    cost(x) = h(g(x))
+    cost(x) = h(filter_grid(g(x)))
     Newuoa.optimize!(cost, x, 1.0, 1.0e-9; check = false, maxeval = maxeval, verbose = verbose)
     return x
 end
@@ -51,31 +125,17 @@ function init_grid_param(kdtree::KDTree, centers; scale = 15.0, θ = 0.0, offset
     return x
 end
 
-function build_grid(halflen; lensletmap = nothing, scale = 15.0, θ = 0.0, center = [1024.0, 1024.0])
+function build_grid(halflen)
     B = @SArray [
         1 1 / 2
         0 √3 / 2
     ]
 
-    R = @SArray [
-        cos(θ) -sin(θ)
-        sin(θ) cos(θ)
-    ]
     idx = -halflen:halflen
     grid = Array{Float64}(undef, 2, length(idx)^2)
     n = 1
     for v in Iterators.product(idx, idx)
         coord = B * vcat(v...)
-        dcoord = scale .* (R * coord) .+ center
-        1 .≤ (dcoord[1]) < 2048 || continue
-        1 .≤ (dcoord[2]) < 2048 || continue
-
-        if !isnothing(lensletmap)
-            idx = round.(Int, dcoord)
-            if lensletmap[idx...] == 0
-                continue
-            end
-        end
         grid[:, n] = coord
         n = n + 1
     end
@@ -102,28 +162,14 @@ function build_centers(profiles, valid)
     return centers
 end
 
-function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
+function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 50, 100, 150, 200), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     valid = findall(!isnothing, profiles)
-    lensletmap = get_lensletmap(profiles)
     if isnothing(laser_models)
         centers = build_centers(profiles, valid)
     else
         centers = build_centers(profiles, laser_models, valid)
     end
-    kdtree = KDTree(centers)
-
-    centeridx, _ = knn(kdtree, center, 1)
-    if isnothing(offset)
-        offset = centers[:, centeridx[:]][:]
-    end
-    x = vcat(offset..., scale..., θ)
-
-    for hl in halflensequence
-        grid = build_grid(hl; lensletmap = lensletmap, center = x[1:2], scale = x[3], θ = x[4])
-        adjust_grid_param!(kdtree, grid, x; maxeval = maxeval, verbose = (verbose > 1))
-    end
-    (verbose > 0) && @info "Final grid parameters: offset=($(x[1]), $(x[2])), scale=$(x[3]), θ=$(rem2pi(x[4], RoundNearest)))"
-    grid = transform_grid(build_grid(150; center = x[1:2], scale = x[3], θ = x[4]), x)
+    grid, x = build_lenslet_grid(centers; halflensequence = halflensequence, maxeval = maxeval, verbose = verbose, scale = scale, θ = θ, offset = offset, center = center)
     gridtree = KDTree(grid)
     idx, _ = knn(gridtree, centers, 1)
     positions = grid[:, vcat(idx...)]
@@ -131,4 +177,95 @@ function find_lenslet_position!(profiles; laser_models = nothing, halflensequenc
         Accessors.@reset profiles[i].position .= tuple(positions[:, n]...)
     end
     return profiles, x[3]
-end #= function find_lenslet_position! =#
+end
+
+
+function build_lenslet_grid(centers; halflensequence = (1, 5, 15, 25, 50, 100, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
+    kdtree = KDTree(centers)
+
+    centeridx, _ = knn(kdtree, center, 1)
+    if isnothing(offset)
+        offset = centers[:, centeridx[1]][:]
+    end
+    x = vcat(offset..., scale..., θ)
+
+    for hl in halflensequence
+        grid = build_grid(hl)
+        adjust_grid_param!(kdtree, grid, x; maxeval = maxeval, verbose = (verbose > 1))
+    end
+    (verbose > 0) && @info "Final grid parameters: offset=($(x[1]), $(x[2])), scale=$(x[3]), θ=$(rem2pi(x[4], RoundNearest)))"
+    grid = filter_grid(transform_grid(build_grid(150), x))
+    return grid, x
+end
+
+function cross_correlation(λ, lamp_spectrum, lasers, lamp, laser_line_width, lasers_λs, lamp_fwhms)
+    T = Float64
+    F = LinOpDFT(T, (2048, 2048))
+    Δλ = (λ[end] - λ[1]) / length(λ)
+
+
+    lamp_template = gaussian.(lamp_fwhms, T.(-2:2)) .* lamp_spectrum'
+    lamp_template ./= sum(lamp_template)
+    lamp_template ./= sqrt(sum(lamp_template .^ 2))
+    image_template = zeros(T, 2048, 2048)
+    image_template[1023:1027, 1004:1047] .= lamp_template[end:-1:1, end:-1:1]
+    image_template = fftshift(image_template)
+
+    A = (inv(F) * (F * image_template .* (F * (lamp.value .* lamp.precision))))
+    b = (inv(F) * (F * (image_template .^ 2) .* (F * lamp.precision)))
+
+    corrlamp = A ./ b
+
+    fvalue = F * (lasers.value .* lasers.precision)
+    fprecision = F * lasers.precision
+    for laser_λ in lasers_λs
+        laser_template = gaussian.(laser_line_width, T.(-2:2)) .* (gaussian.(laser_line_width * Δλ, T.(λ .- laser_λ)))'
+        laser_template ./= sum(laser_template)
+
+        laser_template ./= sqrt(sum(laser_template .^ 2))
+        fill!(image_template, zero(T))
+        image_template[1023:1027, 1004:1047] .= laser_template[end:-1:1, end:-1:1]
+        image_template = fftshift(image_template)
+        A .+= (inv(F) * ((F * image_template) .* fvalue))
+        b .+= (inv(F) * ((F * (image_template .^ 2)) .* fprecision))
+    end
+    corr = A ./ b
+    map!(x -> ifelse(isfinite(x), x, 0.0), corr)
+    map!(x -> ifelse(isfinite(x), x, 0.0), corrlamp)
+    return corr, corrlamp
+end
+
+
+function initialize_bboxes(
+        lamp, lasers;
+        calib_params::FastPICParams = FastPICParams()
+    )
+    @unpack_FastPICParams calib_params
+    @unpack_BboxParams bbox_params
+
+    corr, corrlamp = cross_correlation(λ_template, lamp_template, lasers, lamp, laser_line_width[1], lasers_λs, lamp_cfwhms_init[1])
+    medlamp = median(lamp.value)
+
+    centers = filter_grid(transform_grid(build_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))
+
+    valid = 0
+    @inbounds for  i in axes(centers, 2)
+        bbox = get_bbox(centers[1, i], centers[2, i]; bbox_params = bbox_params)
+        if ismissing(bbox)
+            continue
+        end
+        if get_value(mean(view(lamp, bbox))) < medlamp / lenslets_threshold
+            continue
+        end
+        valid += 1
+        idx = argmax(view(corr, bbox))
+        idx += CartesianIndex(bbox.xmin - 1, bbox.ymin - 1)
+        centers[1, i] = idx[1]
+        centers[2, i] = idx[2]
+    end
+    centers = centers[:, 1:valid]
+    grid, x = build_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
+    grid, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
+    return grid, bboxes, x[3], x[4]
+
+end

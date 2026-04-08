@@ -26,39 +26,37 @@ profiles, lamp_spectra = calibrate_profile(lamp_data; calib_params=my_params)
 """
 
 function calibrate_profile(
+        profiles,
         lamp::WeightedArray{T, 2}
         ; calib_params::FastPICParams = FastPICParams(),
-        valid_lenslets::AbstractVector{Bool} = trues(calib_params.NLENS)
+        valid_lenslets::AbstractVector{Bool} = trues(length(profiles))
     ) where {T}
 
 
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
+    NLENS = length(profiles)
+
     size(valid_lenslets) == (NLENS,) || throw(ArgumentError("valid_lenslets must be of size NLENS"))
 
-
-    bboxes, profiles = initialize_profile!(
-        valid_lenslets,
-        lamp;
-        calib_params = calib_params
-    )
 
     profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
     lamp_spectra = Vector{Union{profile_type, Nothing}}(undef, NLENS)
     fill!(lamp_spectra, nothing)
 
-    valid_lenslets = map(!isnothing, profiles)
+    valid_lenslets = valid_lenslets .& map(!isnothing, profiles)
     progress = nothing
     profile_calibration_verbose && (progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true))
 
     @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
         if isnothing(profiles[i])
             nothing
-        elseif sum(view(lamp, bboxes[i]).precision) == 0
+        elseif sum(view(lamp, profiles[i].bbox).precision) == 0
             profiles[i] = nothing
         else
             try
+                #profiles[i].cx[1] = get_meanx(lamp, profiles[i].bbox)
                 profiles[i] = fit_profile(lamp, profiles[i]; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
                 if any(isnan.(profiles[i].cfwhm))
                     throw("NaN found in profile for lenslet $i")
@@ -111,16 +109,16 @@ Updates the `valid_lenslets` mask in-place if any lenslets are found to be inval
 Modifies `valid_lenslets` in-place, setting invalid lenslets to `false`.
 """
 function initialize_profile!(
-        valid_lenslets,
         lamp;
-        calib_params::FastPICParams = FastPICParams()
+        calib_params::FastPICParams = FastPICParams(),
+        valid_lenslets = trues(calib_params.NLENS)
     )
 
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
 
-    bboxes = fill(BoundingBox{Int}(nothing), NLENS)
+    bboxes = fill(BoundingBox{Int}(), NLENS)
     profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
     fill!(profiles, nothing)
 
@@ -135,6 +133,30 @@ function initialize_profile!(
     end
     return bboxes, profiles
 end
+
+function initialize_profile(
+        bboxes,
+        grid;
+        calib_params::FastPICParams = FastPICParams()
+    )
+
+    @unpack_FastPICParams calib_params
+    @unpack_BboxParams bbox_params
+
+    NLENS = length(bboxes)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
+    fill!(profiles, nothing)
+
+    @inbounds for (i, bbox) in enumerate(bboxes)
+        if ismissing(bbox)
+            profiles[i] = nothing
+        else
+            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(grid[:, i]))
+        end
+    end
+    return profiles
+end
+
 
 """
     refine_lamp_model(lamp, profiles, lamp_spectra; kwargs...)
@@ -223,6 +245,7 @@ function refine_lamp_model(
         end
         #@localize profiles @localize lamp_spectra @localize res @localize progress
         @localize res @localize progress OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
+            #foreach(eachindex(profiles, lamp_spectra)) do i
             if (profiles[i] === nothing)
                 nothing
             elseif (lamp_spectra[i] === nothing)
@@ -278,7 +301,6 @@ function refine_lamp_model(
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
-                    #  rethrow()
                     profiles[i] = nothing
                     lamp_spectra[i] = nothing
                 end
@@ -292,39 +314,6 @@ function refine_lamp_model(
     model_precision[.!isfinite.(model_precision)] .= T(0)
 
     return profiles, lamp_spectra, model
-end
-
-
-"""
-    get_meanx(data::WeightedArray{T,N}, bbox; relative=false) where {T,N}
-
-Compute the precision-weighted mean position along the first axis.
-
-Calculates the centroid position using: `Σ(x * √w * I) / Σ(√w * I)`
-where x is position, w is precision (inverse variance), and I is intensity.
-
-# Arguments
-- `data::WeightedArray{T,N}`: Input weighted data
-- `bbox`: Bounding box defining the region of interest
-- `relative::Bool = false`: If true, use data directly; if false, extract bbox view first
-
-# Returns
-- `Float64`: Precision-weighted mean position along the first axis
-
-# Examples
-```julia
-center_x = get_meanx(detector_data, profile_bbox)
-```
-"""
-function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
-    if relative
-        (; value, precision) = data
-    else
-        (; value, precision) = view(data, bbox)
-    end
-    ax, _ = axes(bbox)
-
-    return sum(value .* sqrt.(precision) .* ax) ./ sum(sqrt.(precision) .* value)
 end
 
 
@@ -374,7 +363,7 @@ function fit_profile(
 
     d = relative ? data : view(data, profile.bbox)
     f(x) = loglikelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
-    Newuoa.optimize!(f, vec, 1, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
+    Newuoa.optimize!(f, vec, 1.0e-2, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
     return re(vec)
 end
 
@@ -391,6 +380,19 @@ function calibrate_spectral_transmission(
 
     for i in findall(!isnothing, profiles)
         trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))
+    end
+    return trms
+end
+
+function calibrate_spectral_transmission(
+        lamp_spectra::Vector{<:WeightedArray},
+        profiles::Vector{<:Profile{T}},
+        lamp_template,
+        templateλ
+    ) where {T}
+    trms = Vector{WeightedArray{Float64, 1}}(undef, length(profiles))
+    for (i, profile) in enumerate(profiles)
+        trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profile))...) * lamp_template)))
     end
     return trms
 end

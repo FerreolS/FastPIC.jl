@@ -21,12 +21,10 @@
     close(specpos)
 
     NLENS::Int = 18908
-    valid_lenslets = trues(NLENS)
 
     # Testing on a small subset for development
-    test_indices = vcat(collect(1:50), 194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203)
-    valid_lenslets .= false
-    valid_lenslets[test_indices] .= true
+    valid_lenslets = vcat(194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203, 1500, 1600, 1700, 1800, 1900, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
+
 
     calib_params = FastPICParams(; nλ = nλ)
     profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width = calibrate(
@@ -36,8 +34,8 @@
         valid_lenslets = valid_lenslets,
     )
 
-    @test length(profiles) == length(test_indices)
-    @test length(lamp_spectra) == length(test_indices)
+    @test length(profiles) == length(valid_lenslets)
+    @test length(lamp_spectra) == length(profiles)
     @test length(template) == length(lλ)
 
     valid = findall(!isnothing, profiles)

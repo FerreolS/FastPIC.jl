@@ -240,3 +240,17 @@ function make_models(
 
     return models
 end
+
+
+function flatten_spectra(
+        spectra::Vector{<:Union{Nothing, WeightedArray{T, 1}}}
+    ) where {T <: Real}
+    spectra = filter_nothing(spectra)
+    precision = zeros(Float64, length(spectra), length(first(spectra)))
+    value = zeros(Float64, length(spectra), length(first(spectra)))
+    foreach(enumerate(spectra)) do (i, sp)
+        precision[i, :] .= sp.precision
+        value[i, :] .= sp.value
+    end
+    return WeightedArray(value, precision)
+end

@@ -25,8 +25,8 @@ bbox_params = BboxParams()
 @with_kw struct BboxParams
     BBOX_DX_LOWER::Int = 2
     BBOX_DX_UPPER::Int = 2
-    BBOX_DY_LOWER::Int = 21
-    BBOX_DY_UPPER::Int = 18
+    BBOX_DY_LOWER::Int = 21 #23
+    BBOX_DY_UPPER::Int = 19 #16
     BBOX_WIDTH::Int = BBOX_DX_LOWER + 1 + BBOX_DX_UPPER
     BBOX_HEIGHT::Int = BBOX_DY_LOWER + 1 + BBOX_DY_UPPER
 end
@@ -90,16 +90,18 @@ Assertion checks validate parameter consistency and ranges.
     @deftype R
     nλ::Int = 3
     @assert (nλ == 3 || nλ == 4)
-    NLENS::Int = 18908
-    @assert NLENS ≥ 1
 
     bbox_params::BboxParams = BboxParams()
 
     # Position of the lenslets
-    LASERS_CXY0S_INIT_PATH::String = joinpath(dirname(pathof(FastPIC)), "lasers_cxy0s_init.txt")
-    lasers_cxy0s_init::Matrix{R} = readdlm(LASERS_CXY0S_INIT_PATH, Float64)
-    @assert size(lasers_cxy0s_init) == (NLENS, 2)
-    @assert all(isfinite.(lasers_cxy0s_init))
+    template_path::String = dirname(pathof(FastPIC))
+    template_file::String = nλ == 3 ? joinpath(template_path, "lamp_YJ.txt") : joinpath(template_path, "lamp_YJH.txt")
+    λ_template::Vector{Float64} = readdlm(template_file, Float64)[:, 1]
+    lamp_template::Vector{Float64} = readdlm(template_file, Float64)[:, 2]
+    lenslets_offset::Vector{Float64} = [1024.0, 1024.0]
+    lenslets_scale::Float64 = 15.5
+    lenslets_θ::Float64 = 0.85
+    lenslets_threshold::Float64 = 2.0
 
     # Profile Calibration parameters
     profile_precision::Type = Float32
@@ -107,7 +109,7 @@ Assertion checks validate parameter consistency and ranges.
     @assert profile_order ≥ 1
     extra_width::Int = 5 # extra width around bbox to consider neighboring lenslets when refining the model
     profile_loop::Int = 2 # number of outer loop of profile refinement
-    lamp_cfwhms_init::VecOrMat{R} = vcat(2.5, zeros(profile_order))
+    lamp_cfwhms_init::VecOrMat{R} = vcat(2.35, zeros(profile_order))
     #@assert size(lamp_cfwhms_init, 2) ≤ 2
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
@@ -122,6 +124,9 @@ Assertion checks validate parameter consistency and ranges.
     spectral_final_order::Int = 3
     @assert spectral_final_order ≥ spectral_initial_order
     lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
+    laser_line_width::Vector{Float64} = fill(1.6, nλ) # FWHM of the laser lines in nm, used for fitting the laser spectra
+    laser_line_pix::Vector{Float64} = nλ == 3 ? [7.0, 20.0, 35.0] : [5.2, 13.4, 22.8, 33.7] # initial guess for the laser line positions in pixels (relative to the center of the lenslet), used for fitting the laser spectra
+
     laser_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
@@ -204,15 +209,22 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 - Lenslets identified as spectral outliers
 - Lenslets outside detector boundaries
 """
-function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = trues(calib_params.NLENS))
-    profiles, lamp_spectra = calibrate_profile(lamp, calib_params = calib_params, valid_lenslets = valid_lenslets)
+function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = nothing)
+    grid, bboxes, lenslet_width, lenslet_θ = initialize_bboxes(lamp, lasers; calib_params = calib_params)
+    profiles = initialize_profile(bboxes, grid; calib_params = calib_params)
+    if valid_lenslets !== nothing
+        profiles = profiles[valid_lenslets]
+    end
+    profiles, lamp_spectra = calibrate_profile(profiles, lamp, calib_params = calib_params)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     lenslet_index = findall(!isnothing, profiles)
-    profiles = filter_nothing(profiles)
-    profiles, lenslet_width = find_lenslet_position!(profiles; verbose = calib_params.position_verbose, maxeval = calib_params.position_maxeval, scale = calib_params.position_scale, θ = calib_params.position_θ, offset = calib_params.position_offset, center = calib_params.position_center)
-    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = 0, nonnegative = true, refinement_loop = 5)
     transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
+    profiles = filter_nothing(profiles)
+    transmission = filter_nothing(transmission)
+    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
+
     return profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width
 end
 
