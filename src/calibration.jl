@@ -228,7 +228,17 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     return profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width
 end
 
-function filter_nothing(x::AbstractVector{Union{T, Nothing}}) where {T}
-    return T[v for v in x if v !== nothing]
+function filter_nothing(x::AbstractVector)
+    T = Base.typesplit(eltype(x), Nothing)
+    T === Union{} && return T[]
+
+    y = Vector{T}(undef, count(!isnothing, x))
+    j = 1
+    @inbounds for v in x
+        if v !== nothing
+            y[j] = v::T
+            j += 1
+        end
+    end
+    return y
 end
-filter_nothing(x::AbstractVector) = x

@@ -243,8 +243,8 @@ end
 
 
 function flatten_spectra(
-        spectra::Vector{<:Union{Nothing, WeightedArray{T, 1}}}
-    ) where {T <: Real}
+        spectra::AbstractVector{<:Union{Nothing, WeightedArray}}
+    )
     spectra = filter_nothing(spectra)
     precision = zeros(Float64, length(spectra), length(first(spectra)))
     value = zeros(Float64, length(spectra), length(first(spectra)))
