@@ -8,9 +8,8 @@
 
 ## TODO
 
-- add a parameter to tune the balance between laser and lamp in spectral_refinement
-- use robust weighted least squares for spectral refinement
-- re-detect bad-pixels and update weights using the model of the lamp with the template
+- use robust weighted least squares to re-detect bad-pixels and update weights using the model of the lamp with the template
+- build a cross-talk operator
 
 ## Development
 
@@ -26,5 +25,5 @@ make precommit-install
 Run all hooks manually:
 
 ```bash
-make precommit
+pre-commit run -a  
 ```

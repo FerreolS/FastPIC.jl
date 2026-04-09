@@ -231,14 +231,10 @@ end
 function filter_nothing(x::AbstractVector)
     T = Base.typesplit(eltype(x), Nothing)
     T === Union{} && return T[]
-
-    y = Vector{T}(undef, count(!isnothing, x))
-    j = 1
-    @inbounds for v in x
-        if v !== nothing
-            y[j] = v::T
-            j += 1
-        end
+    mask = .!isnothing.(x)
+    y = Vector{T}(undef, count(mask))
+    @inbounds for (j, v) in enumerate(x[mask])
+        y[j] = v::T
     end
     return y
 end
