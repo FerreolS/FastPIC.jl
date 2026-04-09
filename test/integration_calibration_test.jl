@@ -33,6 +33,11 @@
         calib_params = calib_params,
         valid_lenslets = valid_lenslets,
     )
+    PIC = build_PIC_operators(profiles, 300, lλ[1:2:end], lenslet_width)
+
+    data = flatten_spectra(lamp_spectra)
+
+    out = PIC' * d.value
 
     @test length(profiles) == length(valid_lenslets)
     @test length(lamp_spectra) == length(profiles)

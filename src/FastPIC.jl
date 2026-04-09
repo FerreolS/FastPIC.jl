@@ -99,6 +99,7 @@ using Accessors,
     Atomix,
     AbstractFFTs,
     BandedMatrices,
+    Bessels,
     ChunkSplitters,
     ConcreteStructs,
     DelimitedFiles,
@@ -128,7 +129,7 @@ using Accessors,
 import Accessors: @reset
 import WeightedData: ScaledL2Loss, get_value, loglikelihood
 
-export FastPICParams, calibrate, extract_spectra, get_wavelength
+export FastPICParams, calibrate, extract_spectra, get_wavelength, build_PIC_operators, flatten_spectra
 
 
 include("calibration.jl")
@@ -138,5 +139,5 @@ include("interpolations.jl")
 include("spectral_calibration.jl")
 include("spectra_extraction.jl")
 include("lenslet_position.jl")
-
+include("PIC_operator.jl")
 end
