@@ -129,7 +129,12 @@ using Accessors,
 import Accessors: @reset
 import WeightedData: ScaledL2Loss, get_value, loglikelihood
 
-export FastPICParams, calibrate, extract_spectra, get_wavelength, build_PIC_operators, flatten_spectra
+export FastPICParams,
+    build_PIC_operators,
+    calibrate,
+    extract_spectra,
+    flatten_spectra,
+    get_wavelength
 
 
 include("calibration.jl")

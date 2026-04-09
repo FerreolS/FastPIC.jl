@@ -37,7 +37,7 @@
 
     data = flatten_spectra(lamp_spectra)
 
-    out = PIC' * d.value
+    out = PIC' * data.value
 
     @test length(profiles) == length(valid_lenslets)
     @test length(lamp_spectra) == length(profiles)
