@@ -33,7 +33,9 @@
         calib_params = calib_params,
         valid_lenslets = valid_lenslets,
     )
-    PIC = build_PIC_operators(profiles, 300, lλ[1:2:end], lenslet_width)
+
+    PIC = build_PIC_operators(profiles, 300, λ, lenslet_width; pad = 5)
+
 
     data = flatten_spectra(lamp_spectra)
 
