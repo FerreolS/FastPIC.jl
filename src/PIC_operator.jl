@@ -1,8 +1,13 @@
-function build_PIC_operators(profiles, Npix, λ, lenslet_width; T=Float64 )
+function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad::Int = 0)
 
-    sz = (Npix, Npix, length(λ))
-    cx = [ p.position[1] for p in profiles] ./ 2048 .* 2π
-    cy = [ p.position[2] for p in profiles] ./ 2048 .* 2π
+    paddedinpix = 2 * pad * 2048 / Npix + 2048
+
+    sz = (Npix + 2 * pad, Npix + 2 * pad, length(λ))
+    # cx = [ p.position[1] for p in profiles] ./ paddedinpix .* 2π
+    # cy = [ p.position[2] for p in profiles] ./ paddedinpix .* 2π
+
+    cx = ([ p.position[1] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π
+    cy = ([ p.position[2] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π
     points = (cx, cy)
     lenslet_radius = lenslet_width / 2048 * Npix / 2
 
@@ -12,18 +17,17 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T=Float64 )
         r2c = true
     end
 
-    mtf = compute_airy_mtf(Npix, lenslet_radius; normalize = true, r2c = r2c)
+    mtf = compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = true)
     D = LinOpDiag(mtf)
     sz2 = (round(Int, sz[1] / 2) + 1, sz[2:end]...)
     C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
     NF = LinOpNFFT(T, sz[1:2], points; sort_points = True())
     II = LinOpMapslice(sz2, NF', [1, 2])
 
-    MI = [ FastPIC.build_sparse_interpolation_integration_matrix( get_precision( T) ,λ, profile) for profile in profiles]
+    MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
 
     P = LinOpMapslice(outputsize(II), MI, 2)
-    PIC = P * II * C * UniformScaling(T(2 / (Npix^2)))
-
+    PIC = P * II * C * UniformScaling(T(2 / ((Npix + 2 * pad)^2)))
     return PIC
 
 end
