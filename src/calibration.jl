@@ -25,8 +25,8 @@ bbox_params = BboxParams()
 @with_kw struct BboxParams
     BBOX_DX_LOWER::Int = 2
     BBOX_DX_UPPER::Int = 2
-    BBOX_DY_LOWER::Int = 21 #23
-    BBOX_DY_UPPER::Int = 19 #16
+    BBOX_DY_LOWER::Int = 22 #23
+    BBOX_DY_UPPER::Int = 18 #16
     BBOX_WIDTH::Int = BBOX_DX_LOWER + 1 + BBOX_DX_UPPER
     BBOX_HEIGHT::Int = BBOX_DY_LOWER + 1 + BBOX_DY_UPPER
 end
@@ -219,11 +219,11 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     lenslet_index = findall(!isnothing, profiles)
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = 0, nonnegative = true, refinement_loop = 5)
+    lamp_spectra = extract_spectra(lamp, profiles; restrict = 0, nonnegative = true, refinement_loop = calib_params.profile_loop)
     transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
     profiles = filter_nothing(profiles)
     transmission = filter_nothing(transmission)
-    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 5)
+    #  lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = calib_params.profile_loop)
 
     return profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width
 end
