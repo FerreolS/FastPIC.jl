@@ -243,14 +243,24 @@ end
 
 
 function flatten_spectra(
-        spectra::AbstractVector{<:Union{Nothing, WeightedArray}}
-    )
+        spectra::AbstractVector{<:Union{Nothing, WeightedArray{T, N}}}
+    ) where {T, N}
     spectra = filter_nothing(spectra)
-    precision = zeros(Float64, length(spectra), length(first(spectra)))
-    value = zeros(Float64, length(spectra), length(first(spectra)))
-    foreach(enumerate(spectra)) do (i, sp)
-        precision[i, :] .= sp.precision
-        value[i, :] .= sp.value
+    if N == 1
+        precision = zeros(T, length(spectra), length(first(spectra)))
+        value = zeros(T, length(spectra), length(first(spectra)))
+        foreach(enumerate(spectra)) do (i, sp)
+            precision[i, :] .= sp.precision
+            value[i, :] .= sp.value
+        end
+    else
+        precision = zeros(Float64, length(spectra), axes(first(spectra), 1), axes(first(spectra), 2))
+        value = zeros(Float64, length(spectra), axes(first(spectra), 1), axes(first(spectra), 2))
+        foreach(enumerate(spectra)) do (i, sp)
+            precision[i, :, :] .= sp.precision
+            value[i, :, :] .= sp.value
+        end
+
     end
     return WeightedArray(value, precision)
 end
