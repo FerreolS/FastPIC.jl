@@ -269,3 +269,17 @@ function initialize_bboxes(
     return grid, bboxes, x[3], x[4]
 
 end
+
+function build_lenslet_map(profiles::AbstractVector{<:Profile}; Npix = 300, lenslet_width = 15 / 2048 * 300, pad = 0)
+    sz = (Npix + 2 * pad, Npix + 2 * pad)
+    lensletmap = -1 .* ones(Int, sz...)
+    centers = hcat((vcat(p.position...) for p in profiles)...) ./ 2048 .* Npix .+ pad
+    kdtree = KDTree(centers)
+    for i in CartesianIndices(lensletmap)
+        idx, dist = knn(kdtree, vcat(Tuple(i)...), 1)
+        if dist[1] < lenslet_width
+            lensletmap[i] = idx[1]
+        end
+    end
+    return lensletmap
+end
