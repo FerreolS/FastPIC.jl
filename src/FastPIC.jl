@@ -123,6 +123,7 @@ using Accessors,
     StatsBase,
     StructuredArrays,
     TwoDimensional,
+    TypeUtils,
     WeightedData,
     ZippedArrays
 
