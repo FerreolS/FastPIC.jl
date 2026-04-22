@@ -17,7 +17,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
         r2c = true
     end
 
-    mtf = compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = true)
+    mtf = compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c)
     D = LinOpDiag(mtf)
     sz2 = (round(Int, sz[1] / 2) + 1, sz[2:end]...)
     C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
@@ -27,7 +27,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
     MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
 
     P = LinOpMapslice(outputsize(II), MI, 2)
-    PIC = P * II * C * UniformScaling(T(2 / ((Npix + 2 * pad)^2)))
+    PIC = P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
     return PIC
 
 end
