@@ -88,7 +88,7 @@ function extract_spectra(
         extra_width = 5
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
-    profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
+    profile_type = ZippedArray{WeightedValue{T}, N - 1, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
     spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
     fill!(spectra, nothing)
 
