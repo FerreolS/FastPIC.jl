@@ -34,6 +34,7 @@
         valid_lenslets = valid_lenslets,
     )
 
+    λ = lλ[3:2:(end - 8)]
     PIC = build_PIC_operators(profiles, 300, λ, lenslet_width; pad = 5)
 
 
