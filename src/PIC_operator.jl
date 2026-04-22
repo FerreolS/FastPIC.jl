@@ -22,7 +22,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T=Float64 )
     MI = [ FastPIC.build_sparse_interpolation_integration_matrix( get_precision( T) ,λ, profile) for profile in profiles]
 
     P = LinOpMapslice(outputsize(II), MI, 2)
-    PIC = P * II * C * UniformScaling(2 / (Npix^2))
+    PIC = P * II * C * UniformScaling(T(2 / (Npix^2)))
 
     return PIC
 
