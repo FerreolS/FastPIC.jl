@@ -24,9 +24,10 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
     NF = LinOpNFFT(T, sz[1:2], points; sort_points = True())
     II = LinOpMapslice(sz2, NF', [1, 2])
 
-    MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
+    # MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
 
-    P = LinOpMapslice(outputsize(II), MI, 2)
+    #  P = LinOpMapslice(outputsize(II), MI, 2)
+    P = build_LinOpIntegration_operators(profiles, λ)
     PIC = P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
     return PIC
 
@@ -101,6 +102,13 @@ function LinOps.apply_!(y, A::LinOpIntegration, x)
     return y
 end
 
+
+function LinOps.apply_adjoint_!(y, A::LinOpIntegration, x)
+    backend = get_backend(x)
+    sparse_kernel_adjoint!(backend)(y, x, A.rows, A.cols, A.values; ndrange = size(A.values, 2))
+    return y
+end
+
 @kernel function sparse_kernel!(output, input, rows, cols, v)
     i = @index(Global, Linear)
     @inbounds for k in 1:size(output, 2)
@@ -109,5 +117,16 @@ end
 
     @inbounds for k in 1:size(v, 1)
         output[i, rows[k, i]] += v[k, i] * input[i, cols[k, i]]
+    end
+end
+
+@kernel function sparse_kernel_adjoint!(output, input, rows, cols, v)
+    i = @index(Global, Linear)
+    @inbounds for k in 1:size(output, 2)
+        output[i, k] = zero(eltype(output))
+    end
+
+    @inbounds for k in 1:size(v, 1)
+        output[i, cols[k, i]] += v[k, i] * input[i, rows[k, i]]
     end
 end
