@@ -47,3 +47,67 @@ function compute_airy_mtf(len, radius; normalize = true, r2c = false)
     end
     return mtf
 end
+
+function build_LinOpIntegration_operators(profiles, λ; T = Float64)
+
+    Np = length(profiles)
+    Np == 0 && throw(ArgumentError("No profiles provided"))
+    Nλ = length(λ)
+    Nl = length(get_wavelength(profiles[1]))
+
+    Lc = Vector{Vector{Int}}(undef, Np)
+    Cc = Vector{Vector{Int}}(undef, Np)
+    Vc = Vector{Vector{T}}(undef, Np)
+
+    for (i, p) in enumerate(profiles)
+        Lp, Cp, Vp = build_sparse_interpolation_integration_coordinate_list(get_precision(T), λ, p)
+        Lc[i] = Lp
+        Cc[i] = Cp
+        Vc[i] = Vp
+    end
+    Nel = maximum(length(l) for l in Lc)
+    L = ones(Int, Nel, Np)
+    C = ones(Int, Nel, Np)
+    V = zeros(T, Nel, Np)
+    for i in 1:Np
+        len = length(Lc[i])
+        L[1:len, i] .= Lc[i]
+        C[1:len, i] .= Cc[i]
+        V[1:len, i] .= Vc[i]
+    end
+    sizein = (Np, Nλ)
+    sizeout = (Np, Nl)
+
+    return LinOpIntegration(sizein, sizeout, L, C, V)
+end
+
+struct LinOpIntegration{I, O, T} <: LinOp{I, O}
+    inputspace::I
+    outputspace::O
+    rows::Matrix{Int}
+    cols::Matrix{Int}
+    values::Matrix{T}
+end
+
+function LinOpIntegration(sizein::NTuple, sizeout::NTuple, rows::Matrix{Int}, cols::Matrix{Int}, values::Matrix{T}) where {T}
+    inputspace = LinOps.CoordinateSpace(sizein)
+    outputspace = LinOps.CoordinateSpace(sizeout)
+    return LinOpIntegration(inputspace, outputspace, rows, cols, values)
+end
+
+function LinOps.apply_!(y, A::LinOpIntegration, x)
+    backend = get_backend(x)
+    sparse_kernel!(backend)(y, x, A.rows, A.cols, A.values; ndrange = size(A.values, 2))
+    return y
+end
+
+@kernel function sparse_kernel!(output, input, rows, cols, v)
+    i = @index(Global, Linear)
+    @inbounds for k in 1:size(output, 2)
+        output[i, k] = zero(eltype(output))
+    end
+
+    @inbounds for k in 1:size(v, 1)
+        output[i, rows[k, i]] += v[k, i] * input[i, cols[k, i]]
+    end
+end
