@@ -268,20 +268,21 @@ function refine_lamp_model(
                             verbose = fit_profile_verbose
                         )
                         if any(isnan.(profiles[i].cfwhm))
-                            profiles[i] = nothing
+                            #     profiles[i] = nothing
                             error("NaN found in cfwhm for lenslet $i")
                         end
                     end
+
                     lamp_spectra[i] = extract_spectrum(resi, profiles[i]; inbbox = true, restrict = lamp_extract_restrict, nonnegative = true)
                     if any(isnan.(lamp_spectra[i]))
-                        profiles[i] = nothing
+                        #  profiles[i] = nothing
                         error("NaN found in lamp spectrum for lenslet $i")
                     end
                     (; xmin, xmax, ymin, ymax) = profiles[i].bbox
                     lbox = BoundingBox(xmin = xmin - extra_width, xmax = xmax + extra_width, ymin = ymin, ymax = ymax) ∩ detectorbbox
                     p = profiles[i](lbox)
                     if any(map(!isfinite, p))
-                        profiles[i] = nothing
+                        #profiles[i] = nothing
                         error("NaN found in profile for lenslet $i")
                     end
                     if any(map(x -> x < 0, p))
@@ -379,7 +380,12 @@ function calibrate_spectral_transmission(
     fill!(trms, nothing)
 
     for i in findall(!isnothing, profiles)
-        trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))
+        if isnothing(lamp_spectra[i])
+            @show "lamp spectrum is nothing for lenslet $i"
+            trms[i] = WeightedArray(ones(Float64, length(get_wavelength(profiles[i]))))
+        else
+            trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))
+        end
     end
     return trms
 end
