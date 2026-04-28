@@ -242,25 +242,25 @@ function make_models(
 end
 
 
-function flatten_spectra(
-        spectra::AbstractVector{<:Union{Nothing, WeightedArray{T, N}}}
-    ) where {T, N}
+function flatten_spectra(spectra::AbstractVector{<:Union{Nothing, WeightedArray}})
     spectra = filter_nothing(spectra)
+    sp1 = first(spectra)
+    T = eltype(sp1.value)
+    N = ndims(sp1)
     if N == 1
-        precision = zeros(T, length(spectra), length(first(spectra)))
-        value = zeros(T, length(spectra), length(first(spectra)))
+        precision = zeros(T, length(spectra), length(sp1))
+        value = zeros(T, length(spectra), length(sp1))
         foreach(enumerate(spectra)) do (i, sp)
             precision[i, :] .= sp.precision
             value[i, :] .= sp.value
         end
     else
-        precision = zeros(Float64, length(spectra), axes(first(spectra), 1), axes(first(spectra), 2))
-        value = zeros(Float64, length(spectra), axes(first(spectra), 1), axes(first(spectra), 2))
+        precision = zeros(T, length(spectra), size(sp1, 1), size(sp1, 2))
+        value = zeros(T, length(spectra), size(sp1, 1), size(sp1, 2))
         foreach(enumerate(spectra)) do (i, sp)
             precision[i, :, :] .= sp.precision
             value[i, :, :] .= sp.value
         end
-
     end
     return WeightedArray(value, precision)
 end
