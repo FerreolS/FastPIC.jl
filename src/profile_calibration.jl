@@ -27,8 +27,8 @@ profiles, lamp_spectra = calibrate_profile(lamp_data; calib_params=my_params)
 
 function calibrate_profile(
         profiles,
-        lamp::WeightedArray{T, 2}
-        ; calib_params::FastPICParams = FastPICParams(),
+        lamp::WeightedArray{T, 2};
+        calib_params::FastPICParams = FastPICParams(),
         valid_lenslets::AbstractVector{Bool} = trues(length(profiles))
     ) where {T}
 

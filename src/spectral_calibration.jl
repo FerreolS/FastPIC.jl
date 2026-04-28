@@ -261,7 +261,7 @@ function estimate_template(
         A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
     end
     b = zeros(Float64, nλ)
-    foreach(findall(valid_lenslets)) do idx
+    for idx in findall(valid_lenslets)
         (; value, precision) = spectra[idx]
         MI[idx] = build_sparse_interpolation_integration_matrix(λ, profiles[idx])
         b .+= Array(MI[idx]' * (precision .* value))
@@ -561,7 +561,7 @@ function laser_calibration!(
                 las[i] = fit_laser(laser_spectra[i], laser_model)
 
                 if std(las[i].position .- laser_model.position) > 1
-                    throw("Laser position too far from initial guess for lenslet $i")
+                    throw("Laser position too far from initial guess for lenslet $i, $(las[i].position), $(laser_model.position)")
                 end
                 W = get_laser_precision(las[i], laser_spectra[i])
                 if any(diag(W) .< 1.0e-6)
