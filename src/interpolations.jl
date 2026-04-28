@@ -88,7 +88,7 @@ A = build_sparse_interpolation_integration_matrix(knots, lower, upper)
 # A * f gives integrals of interpolated f over the three bins
 ```
 """
-function build_sparse_interpolation_integration_matrix(knots::AbstractArray, lowersample, uppersamples; kernel::Kernel{T, N} = CatmullRomSpline()) where {T, N}
+function build_sparse_interpolation_integration_matrix(knots::AbstractArray{T}, lowersample, uppersamples, kernel::Kernel = CatmullRomSpline{T}()) where {T}
 
     lin = length(uppersamples)
     lin == length(lowersample) || throw(DimensionMismatch("uppersamples and lowersample must have the same length"))
@@ -98,7 +98,7 @@ function build_sparse_interpolation_integration_matrix(knots::AbstractArray, low
 
     return sparse(L, C, V, lin, col)
 end
-function build_sparse_interpolation_integration_coordinate_list(::Type{T}, knots::AbstractArray, profile::Profile; kernel::Kernel{T, N} = CatmullRomSpline()) where {T, N}
+function build_sparse_interpolation_integration_coordinate_list(::Type{T}, knots::AbstractArray, profile::Profile; kernel::Kernel = CatmullRomSpline{T}()) where {T}
 
     lowersample, uppersamples = get_lower_uppersamples(get_wavelength(profile))
 
@@ -107,7 +107,7 @@ function build_sparse_interpolation_integration_coordinate_list(::Type{T}, knots
 
 end
 
-function build_sparse_interpolation_integration_coordinate_list(knots::AbstractArray, lowersample, uppersamples; kernel::Kernel{T, N} = CatmullRomSpline()) where {T, N}
+function build_sparse_interpolation_integration_coordinate_list(knots::AbstractArray{T}, lowersample, uppersamples; kernel::Kernel = CatmullRomSpline{T}()) where {T}
 
     lk = length(kernel)
     lin = length(uppersamples)
