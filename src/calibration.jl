@@ -101,7 +101,8 @@ Assertion checks validate parameter consistency and ranges.
     lenslets_offset::Vector{Float64} = [1024.0, 1024.0]
     lenslets_scale::Float64 = 15.5
     lenslets_θ::Float64 = 0.85
-    lenslets_threshold::Float64 = 2.0
+    lenslets_threshold::Float64 = 5.0
+    lenslets_warping_order::Int = 3
 
     # Profile Calibration parameters
     profile_precision::Type = Float32
@@ -125,7 +126,7 @@ Assertion checks validate parameter consistency and ranges.
     @assert spectral_final_order ≥ spectral_initial_order
     lasers_λs::Vector{R} = [987.72e-9, 1123.71e-9, 1309.37e-9, 1545.1e-9][1:nλ]
     laser_line_width::Vector{Float64} = fill(1.6, nλ) # FWHM of the laser lines in nm, used for fitting the laser spectra
-    laser_line_pix::Vector{Float64} = nλ == 3 ? [7.0, 20.0, 35.0] : [5.0, 13, 22, 33] # initial guess for the laser line positions in pixels (relative to the center of the lenslet), used for fitting the laser spectra
+    laser_line_pix::Vector{Float64} = nλ == 3 ? [8.0, 21.0, 36.0] : [5.0, 13, 22, 33] # initial guess for the laser line positions in pixels (relative to the center of the lenslet), used for fitting the laser spectra
 
     laser_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration

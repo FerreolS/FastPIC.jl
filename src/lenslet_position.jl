@@ -66,13 +66,71 @@ function transform_grid(grid, offset, scale, θ)
     return scale .* (R * grid) .+ offset
 end
 
+function poly_coeffs_size(order::Integer)
+    order >= 0 || error("order must be non-negative")
+    return (order + 1) * (order + 2) ÷ 2
+end
+
+function poly_order_from_coeffs_size(ncoeff::Integer)
+    ncoeff >= 0 || error("number of coefficients must be non-negative")
+    order_value = (-3 + sqrt(1 + 8 * ncoeff)) / 2
+    isinteger(order_value) || error("invalid number of coefficients: $ncoeff")
+    order = Int(order_value)
+    return order
+end
+
+"""
+    build_poly_matrix(grid, order) -> A
+
+Build the design matrix for a 2D polynomial fit of degree `order` from a `2×N` grid.
+
+Each column of `A` corresponds to a monomial basis term `x^(deg-p) * y^p`, ordered as:
+- column 1: 1  (constant)
+- deg=1, p=0..1:  x, y
+- deg=2, p=0..2:  x², xy, y²
+- deg=3, p=0..3:  x³, x²y, xy², y³
+- ...
+
+The column ordering matches `transform_grid_poly`, so coefficients obtained by fitting with
+`A` can be used directly with `transform_grid_poly`.
+
+# Returns
+- `Matrix{T}` of size `(N, poly_coeffs_size(order))`
+"""
+function build_poly_matrix(grid::AbstractMatrix{T}, order::Integer) where {T}
+    order >= 0 || error("order must be non-negative")
+    gx = grid[1, :]
+    gy = grid[2, :]
+    n = size(grid, 2)
+    ncols = poly_coeffs_size(order)
+    A = ones(T, n, ncols)
+
+    xpows = Vector{Vector{T}}(undef, order + 1)
+    ypows = Vector{Vector{T}}(undef, order + 1)
+    xpows[1] = ones(T, n)
+    ypows[1] = ones(T, n)
+    @inbounds for p in 2:(order + 1)
+        xpows[p] = xpows[p - 1] .* gx
+        ypows[p] = ypows[p - 1] .* gy
+    end
+
+    k = 2
+    @inbounds for deg in 1:order
+        for p in 0:deg
+            A[:, k] .= xpows[deg - p + 1] .* ypows[p + 1]
+            k += 1
+        end
+    end
+    return A
+end
+
 function filter_grid(grid)
     mask = 1 .< grid[1, :] .< 2048 .&& 1 .< grid[2, :] .< 2048
     grid = grid[:, mask]
     return grid
 end
 
-function build_boxes(grid, lamp; threshold = 2, bboxparams = BboxParams())
+function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshift_bbox = false)
     medlamp = median(lamp.value)
     mask = trues(size(grid, 2))
     boxes = Vector{BoundingBox{Int}}(undef, size(grid, 2))
@@ -86,7 +144,11 @@ function build_boxes(grid, lamp; threshold = 2, bboxparams = BboxParams())
             mask[i] = false
             continue
         end
-        boxes[i] = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
+        if xshift_bbox
+            boxes[i] = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
+        else
+            boxes[i] = box
+        end
     end
     return grid[:, mask], boxes[mask]
 end
@@ -114,7 +176,6 @@ function adjust_grid_param!(
     Newuoa.optimize!(cost, x, 1.0, 1.0e-9; check = false, maxeval = maxeval, verbose = verbose)
     return x
 end
-
 
 function init_grid_param(kdtree::KDTree, centers; scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     centeridx, _ = knn(kdtree, center, 1)
@@ -198,6 +259,35 @@ function build_lenslet_grid(centers; halflensequence = (1, 5, 15, 25, 50, 100, 1
     return grid, x
 end
 
+
+function estimate_lenslet_warping(grid, centers; verbose = 0, order = 3)
+    kdtree = KDTree(grid)
+    idx, dist = knn(kdtree, centers, 1)
+    xc = [x[1] for x in idx]
+    selected = [d[1] .< 14.0 for d in dist]
+    xc = xc[selected]
+    grd = view(grid, :, xc)
+    A = build_poly_matrix(grd, order)
+    ML = inv(A' * A) * A'
+    px = ML * (grd[1, :] .- centers[1, selected])
+    py = ML * (grd[2, :] .- centers[2, selected])
+    if verbose > 0
+        @info "Estimated lenslet warping polynomial coefficients (order $order):"
+        for i in 1:length(px)
+            @info "  x coeff $i: $(px[i]), y coeff $i: $(py[i])"
+        end
+    end
+    coefs = hcat(px, py)
+    return coefs
+end
+
+function correct_lenslet_warping(grid, coefs)
+    A = build_poly_matrix(grid, poly_order_from_coeffs_size(size(coefs, 1)))
+    correction = A * coefs
+    corrected_grid = grid .- correction'
+    return corrected_grid
+end
+
 function cross_correlation(λ, lamp_spectrum, lasers, lamp, laser_line_width, lasers_λs, lamp_fwhms)
     T = Float64
     F = LinOpDFT(T, (2048, 2048))
@@ -248,8 +338,8 @@ function initialize_bboxes(
 
     centers = filter_grid(transform_grid(build_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))
 
-    valid = 0
-    @inbounds for  i in axes(centers, 2)
+    valid = falses(size(centers, 2))
+    @inbounds for i in axes(centers, 2)
         bbox = get_bbox(centers[1, i], centers[2, i]; bbox_params = bbox_params)
         if ismissing(bbox)
             continue
@@ -257,14 +347,16 @@ function initialize_bboxes(
         if get_value(mean(view(lamp, bbox))) < medlamp / lenslets_threshold
             continue
         end
-        valid += 1
+        valid[i] = true
         idx = argmax(view(corr, bbox))
         idx += CartesianIndex(bbox.xmin - 1, bbox.ymin - 1)
         centers[1, i] = idx[1]
         centers[2, i] = idx[2]
     end
-    centers = centers[:, 1:valid]
+    centers = centers[:, valid]
     grid, x = build_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
+    poly_coefs = estimate_lenslet_warping(grid, centers; order = lenslets_warping_order)
+    grid = correct_lenslet_warping(grid, poly_coefs)
     grid, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
     return grid, bboxes, x[3], x[4]
 
