@@ -27,13 +27,13 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
     # MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
 
     #  P = LinOpMapslice(outputsize(II), MI, 2)
-    P = build_LinOpIntegration_operators(profiles, λ)
+    P = build_LinOpIntegration_operators(profiles, λ; T = T)
     PIC = P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
     return PIC
 
 end
 
-function compute_airy_mtf(len, radius; normalize = true, r2c = false)
+function compute_airy_mtf(len, radius; normalize = true, r2c = false, T = Float64)
     if r2c
         x = rfftfreq(len)
     else
@@ -46,7 +46,7 @@ function compute_airy_mtf(len, radius; normalize = true, r2c = false)
     if !normalize
         mtf .*= 2π * radius^2
     end
-    return mtf
+    return T.(mtf)
 end
 
 function build_LinOpIntegration_operators(profiles, λ; T = Float64)
@@ -56,19 +56,19 @@ function build_LinOpIntegration_operators(profiles, λ; T = Float64)
     Nλ = length(λ)
     Nl = length(get_wavelength(profiles[1]))
 
-    Lc = Vector{Vector{Int}}(undef, Np)
-    Cc = Vector{Vector{Int}}(undef, Np)
+    Lc = Vector{Vector{Int32}}(undef, Np)
+    Cc = Vector{Vector{Int32}}(undef, Np)
     Vc = Vector{Vector{T}}(undef, Np)
 
     for (i, p) in enumerate(profiles)
         Lp, Cp, Vp = build_sparse_interpolation_integration_coordinate_list(get_precision(T), λ, p)
-        Lc[i] = Lp
-        Cc[i] = Cp
+        Lc[i] = Int32.(Lp)
+        Cc[i] = Int32.(Cp)
         Vc[i] = Vp
     end
     Nel = maximum(length(l) for l in Lc)
-    L = ones(Int, Nel, Np)
-    C = ones(Int, Nel, Np)
+    L = ones(Int32, Nel, Np)
+    C = ones(Int32, Nel, Np)
     V = zeros(T, Nel, Np)
     for i in 1:Np
         len = length(Lc[i])
@@ -85,12 +85,12 @@ end
 struct LinOpIntegration{I, O, T} <: LinOp{I, O}
     inputspace::I
     outputspace::O
-    rows::Matrix{Int}
-    cols::Matrix{Int}
+    rows::Matrix{Int32}
+    cols::Matrix{Int32}
     values::Matrix{T}
 end
 
-function LinOpIntegration(sizein::NTuple, sizeout::NTuple, rows::Matrix{Int}, cols::Matrix{Int}, values::Matrix{T}) where {T}
+function LinOpIntegration(sizein::NTuple, sizeout::NTuple, rows::Matrix{Int32}, cols::Matrix{Int32}, values::Matrix{T}) where {T}
     inputspace = LinOps.CoordinateSpace(sizein)
     outputspace = LinOps.CoordinateSpace(sizeout)
     return LinOpIntegration(inputspace, outputspace, rows, cols, values)
@@ -99,6 +99,7 @@ end
 function LinOps.apply_!(y, A::LinOpIntegration, x)
     backend = get_backend(x)
     sparse_kernel!(backend)(y, x, A.rows, A.cols, A.values; ndrange = size(A.values, 2))
+    synchronize(backend)
     return y
 end
 
@@ -106,6 +107,7 @@ end
 function LinOps.apply_adjoint_!(y, A::LinOpIntegration, x)
     backend = get_backend(x)
     sparse_kernel_adjoint!(backend)(y, x, A.rows, A.cols, A.values; ndrange = size(A.values, 2))
+    synchronize(backend)
     return y
 end
 
