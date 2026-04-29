@@ -27,20 +27,22 @@
 
 
     calib_params = FastPICParams(; nλ = nλ)
-    profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width = calibrate(
+    profiles, template, transmission, lλ, lenslet_width = calibrate(
         lamp,
         lasers,
         calib_params = calib_params,
         valid_lenslets = valid_lenslets,
     )
 
-    λ = lλ[3:2:(end - 8)]
+    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 0)
+
+    λ = lλ[10:2:end]
     PIC = build_PIC_operators(profiles, 300, λ, lenslet_width; pad = 5)
 
 
     data = flatten_spectra(lamp_spectra)
-
-    out = PIC' * data.value
+    goodpix = data.precision .> 0
+    out = PIC' * (data.value .* goodpix)
 
     @test length(profiles) == length(valid_lenslets)
     @test length(lamp_spectra) == length(profiles)

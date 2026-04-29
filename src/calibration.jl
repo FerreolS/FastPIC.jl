@@ -219,14 +219,9 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, lamp_spectra = calibrate_profile(profiles, lamp, calib_params = calib_params)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-    lenslet_index = findall(!isnothing, profiles)
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = 0, nonnegative = true, refinement_loop = calib_params.profile_loop)
-    transmission = calibrate_spectral_transmission(lamp_spectra, profiles, template, lλ)
     profiles = filter_nothing(profiles)
-    transmission = filter_nothing(transmission)
-    #  lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = calib_params.profile_loop)
-
-    return profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width
+    transmission = estimate_transmission(profiles, lamp, lλ, template)
+    return profiles, template, transmission, lλ, lenslet_width
 end
 
 function filter_nothing(x::AbstractVector)

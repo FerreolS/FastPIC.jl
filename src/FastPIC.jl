@@ -145,6 +145,7 @@ include("profile_calibration.jl")
 include("interpolations.jl")
 include("spectral_calibration.jl")
 include("spectra_extraction.jl")
+include("transmission.jl")
 include("lenslet_position.jl")
 include("PIC_operator.jl")
 end
