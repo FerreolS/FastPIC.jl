@@ -134,6 +134,7 @@ Assertion checks validate parameter consistency and ranges.
     spectral_calibration_verbose::Bool = true
     spectral_recalibration_regul::Float64 = 1.0 # Tikhonov regularization parameter for spectral recalibration
 
+    transmission_threshold::Float64 = 0.5 # threshold to consider a lenslet as good when estimating the transmission, in terms of relative transmission (compared to the median transmission of all lenslets)
     # Position of the lenslets parameters
     position_verbose::Int = 1
     position_maxeval::Int = 1000
@@ -220,7 +221,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     profiles = filter_nothing(profiles)
-    transmission = estimate_transmission(profiles, lamp, lλ, template)
+    transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
     return profiles, template, transmission, lλ, lenslet_width
 end
 
