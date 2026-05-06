@@ -140,12 +140,21 @@ export FastPICParams,
 
 
 include("calibration.jl")
-include("profile.jl")
-include("profile_calibration.jl")
-include("interpolations.jl")
-include("spectral_calibration.jl")
+include("calibrate.jl")
+
+const Profile = Calibration.Profile
+
+get_wavelength(args...; kwargs...) = Calibration.get_wavelength(args...; kwargs...)
+build_sparse_interpolation_integration_matrix(args...; kwargs...) = Calibration.build_sparse_interpolation_integration_matrix(args...; kwargs...)
+build_sparse_interpolation_integration_coordinate_list(args...; kwargs...) = Calibration.build_sparse_interpolation_integration_coordinate_list(args...; kwargs...)
+get_lower_uppersamples(args...; kwargs...) = Calibration.get_lower_uppersamples(args...; kwargs...)
+refine_lamp_model(args...; kwargs...) = Calibration.refine_lamp_model(args...; kwargs...)
+filter_spectra_outliers(args...; kwargs...) = Calibration.filter_spectra_outliers(args...; kwargs...)
+filter_spectra_outliers!(args...; kwargs...) = Calibration.filter_spectra_outliers!(args...; kwargs...)
+
 include("spectra_extraction.jl")
-include("transmission.jl")
-include("lenslet_position.jl")
 include("PIC_operator.jl")
+
+calibrate(args...; kwargs...) = Calibration.calibrate(args...; kwargs...)
+filter_nothing(x::AbstractVector) = Calibration.filter_nothing(x)
 end
