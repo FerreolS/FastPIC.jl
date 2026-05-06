@@ -31,7 +31,7 @@ using WeightedData: get_value, get_precision
 
     mktempdir() do tmpdir
         fitspath = normpath(tmpdir, "fit.fits")
-        @test_nowarn FastPIC.export_calib(fitspath, profiles, lamp, template, transmission, lλ)
+        @test_nowarn FastPIC.export_calib(fitspath, profiles, template, transmission, lλ)
 
         local (profiles2, template2, transmission2, lλ2)
         @test_nowarn (profiles2, template2, transmission2, lλ2) = FastPIC.import_calib(fitspath)
