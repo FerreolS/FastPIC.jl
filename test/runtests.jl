@@ -6,4 +6,5 @@ using LazyArtifacts
     include("profile_unit_test.jl")
     include("spectra_extraction_unit_test.jl")
     include("integration_calibration_test.jl")
+    include("io_test.jl")
 end

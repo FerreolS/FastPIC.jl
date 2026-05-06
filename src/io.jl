@@ -36,6 +36,7 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
             "CFWHM" => (Float64, size_cfwhm),
             "CX" => (Float64, size_cx),
             "SPECTRAL_COEFS" => (Float64, size_spectral_coefs),
+            "POSITION" => (Float64, 2),
             "TRANSMISSION" => (Float64, (length_transmission_factors, 2))
         )
         
@@ -62,6 +63,10 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
 
         write(profilehdu, "SPECTRAL_COEFS" => stack([
             isnothing(p) ? fill(NaN, size_spectral_coefs) : p.spectral_coefs
+            for p in profiles ]))
+
+        write(profilehdu, "POSITION" => stack([
+            isnothing(p) ? [NaN64, NaN64] : [p.position[1], p.position[2]]
             for p in profiles ]))
 
         write(profilehdu, "TRANSMISSION" => stack([
@@ -106,7 +111,8 @@ function import_calib(fitspath)
                 cfwhm = P["CFWHM"][ fill(Colon(), N)..., i]
                 cx = P["CX"][:,i]
                 spectral_coefs = iszero(size_C) ? Nothing : P["SPECTRAL_COEFS"][:,i]
-                profiles[i] = Profile(T, bbox, ycenter, cfwhm, cx, spectral_coefs)
+                position = (P["POSITION"][1,i], P["POSITION"][2,i])
+                profiles[i] = Profile(T, bbox, ycenter, cfwhm, cx, spectral_coefs, position)
             end
             # === TRANSMISSION === #
             if all(isnan, P["TRANSMISSION"][:,:,i])
