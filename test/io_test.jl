@@ -1,7 +1,7 @@
 using Test, LazyArtifacts, FastPIC, AstroFITS, WeightedData
 using WeightedData: get_value, get_precision
 
-@testset "Integration: calibration pipeline (artifact data)" begin
+@testset "input output with FITS files" begin
     test_data_path = artifact"calibrationtestdata"
     # to make it work from the REPL by `include`, cd into the "test/" folder first
     files = joinpath.(test_data_path, ("wave.fits", "specpos.fits"))
