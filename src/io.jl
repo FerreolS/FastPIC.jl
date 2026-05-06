@@ -39,10 +39,10 @@ function export_calib(fitspath, profiles, lamp_spectra, template, transmission, 
             "POSITION" => (Float64, 2),
             "TRANSMISSION" => (Float64, (length_transmission_factors, 2))
         )
-        
+
         profilehdu["EXTNAME"] = ("PROFILES", "parametric model of each spectrum")
         profilehdu["HDUNAME"] = ("PROFILES", "parametric model of each spectrum")
-        
+
         profilehdu["T"] = (string(profiles[fi].type), "numeric type for computations")
         profilehdu["N"] = (ndims(profiles[fi].cfwhm), "ndims of coefs for FWHM variation")
         profilehdu["SIZE_C"] = (size_spectral_coefs, "nb of coefs for wavelength solution")
@@ -79,23 +79,23 @@ end
 
 function import_calib(fitspath)
     FitsFile(fitspath) do fits
-        
+
         # === TEMPLATE === #
         template = read(fits["TEMPLATE"])
-        
+
         # === lλ === #
         start_λ = fits["TEMPLATE"]["CRVAL1"].float
         step_λ = fits["TEMPLATE"]["CDELT1"].float
         size_λ = length(template)
         lλ = range(start=start_λ, step=step_λ, length=size_λ)
-        
+
         T = fits["PROFILES"]["T"].string == "Float32" ? Float32 :
             fits["PROFILES"]["T"].string == "Float64" ? Float64 :
             error("cannot parse type")
         N = fits["PROFILES"]["N"].integer
         size_C = fits["PROFILES"]["SIZE_C"].integer
         C = iszero(size_C) ? Nothing : Vector{Float64}
-        
+
         nblenslets = fits["PROFILES"].data_size[1]
         profiles = Vector{Union{Nothing,Profile{T,N,C}}}(undef, nblenslets)
         transmission = Vector{Union{Nothing,WeightedArray{Float64,1}}}(undef, nblenslets)
