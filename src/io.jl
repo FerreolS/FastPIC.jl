@@ -1,9 +1,9 @@
-function export_calib(fitspath, lmap, profiles, template, transmission, lλ)
+function export_calib(fitspath, profiles, template, transmission, lλ)
     return FitsFile(fitspath, "w!") do fits
 
         # === PRIMARY HDU "LMAP" (Image) === #
-
-        lmaphdu = FitsImageHDU(fits, size(lmap); bitpix=64) # eltype=Int64
+        lmap = get_lensletmap(profiles)
+        lmaphdu = FitsImageHDU(fits, size(lmap); bitpix = 64) # eltype=Int64
         lmaphdu["EXTNAME"] = ("LMAP", "lenslets map")
         lmaphdu["HDUNAME"] = ("LMAP", "lenslets map")
         write(lmaphdu, lmap)

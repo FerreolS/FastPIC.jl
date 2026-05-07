@@ -29,12 +29,12 @@ using WeightedData: get_value, get_precision
         valid_lenslets = valid_lenslets,
     )
 
-    lmap = FastPIC.build_lenslet_map(profiles; lenslet_width = 1.5)
 
     mktempdir() do tmpdir
         fitspath = normpath(tmpdir, "fit.fits")
-        @test_nowarn FastPIC.export_calib(fitspath, lmap, profiles, template, transmission, lλ)
+        @test_nowarn FastPIC.export_calib(fitspath, profiles, template, transmission, lλ)
 
+        lmap = FastPIC.get_lensletmap(profiles)
         local (lmap2, profiles2, template2, transmission2, lλ2)
         @test_nowarn (lmap2, profiles2, template2, transmission2, lλ2) = FastPIC.import_calib(fitspath)
 
