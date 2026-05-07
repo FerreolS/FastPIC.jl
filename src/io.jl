@@ -1,9 +1,16 @@
-function export_calib(fitspath, profiles, template, transmission, lλ)
+function export_calib(fitspath, lmap, profiles, template, transmission, lλ)
     return FitsFile(fitspath, "w!") do fits
 
-        # === PRIMARY HDU "TEMPLATE" (Image) === #
+        # === PRIMARY HDU "LMAP" (Image) === #
 
-        templatehdu = FitsImageHDU(fits, size(template); bitpix = -64)
+        lmaphdu = FitsImageHDU(fits, size(lmap); bitpix=64) # eltype=Int64
+        lmaphdu["EXTNAME"] = ("LMAP", "lenslets map")
+        lmaphdu["HDUNAME"] = ("LMAP", "lenslets map")
+        write(lmaphdu, lmap)
+
+        # === HDU 2 "TEMPLATE" (Image) === #
+
+        templatehdu = FitsImageHDU(fits, size(template); bitpix = -64) # eltype=Float64
 
         templatehdu["EXTNAME"] = ("TEMPLATE", "Common lamp template spectrum")
         templatehdu["HDUNAME"] = ("TEMPLATE", "Common lamp template spectrum")
@@ -16,7 +23,7 @@ function export_calib(fitspath, profiles, template, transmission, lλ)
 
         write(templatehdu, template)
 
-        # === HDU 2 "PROFILES" (Table) === #
+        # === HDU 3 "PROFILES" (Table) === #
 
         fipr = findfirst(!isnothing, profiles)
         isnothing(fipr) && error("every profile is set to `nothing`")
@@ -111,6 +118,9 @@ end
 function import_calib(fitspath)
     return FitsFile(fitspath) do fits
 
+        # === LMAP === #
+        lmap = read(fits["LMAP"])
+
         # === TEMPLATE === #
         template = read(fits["TEMPLATE"])
 
@@ -158,6 +168,6 @@ function import_calib(fitspath)
             end
         end
 
-        (profiles, template, transmission, lλ)
+        (lmap, profiles, template, transmission, lλ)
     end
 end
