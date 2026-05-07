@@ -18,17 +18,17 @@ function export_calib(fitspath, profiles, template, transmission, lλ)
 
         # === HDU 2 "PROFILES" (Table) === #
 
-        fi = findfirst(!isnothing, profiles)
-        isnothing(fi) && error("every profile is set to `nothing`")
+        fipr = findfirst(!isnothing, profiles)
+        isnothing(fipr) && error("every profile is set to `nothing`")
 
-        size_cfwhm = size(profiles[fi].cfwhm)
-        size_cx = size(profiles[fi].cx)
-        size_spectral_coefs = isnothing(profiles[fi].spectral_coefs) ? 0 :
-            length(profiles[fi].spectral_coefs)
+        size_cfwhm = size(profiles[fipr].cfwhm)
+        size_cx = size(profiles[fipr].cx)
+        size_spectral_coefs = isnothing(profiles[fipr].spectral_coefs) ? 0 :
+            length(profiles[fipr].spectral_coefs)
 
-        fi = findfirst(!isnothing, transmission)
-        isnothing(fi) && error("every transmission is set to `nothing`")
-        length_transmission_factors = length(transmission[fi].value)
+        fitr = findfirst(!isnothing, transmission)
+        isnothing(fitr) && error("every transmission is set to `nothing`")
+        length_transmission_factors = length(transmission[fitr].value)
 
         profilehdu = FitsTableHDU(
             fits,
@@ -44,8 +44,8 @@ function export_calib(fitspath, profiles, template, transmission, lλ)
         profilehdu["EXTNAME"] = ("PROFILES", "parametric model of each spectrum")
         profilehdu["HDUNAME"] = ("PROFILES", "parametric model of each spectrum")
 
-        profilehdu["T"] = (string(profiles[fi].type), "numeric type for computations")
-        profilehdu["N"] = (ndims(profiles[fi].cfwhm), "ndims of coefs for FWHM variation")
+        profilehdu["T"] = (string(profiles[fipr].type), "numeric type for computations")
+        profilehdu["N"] = (ndims(profiles[fipr].cfwhm), "ndims of coefs for FWHM variation")
         profilehdu["SIZE_C"] = (size_spectral_coefs, "nb of coefs for wavelength solution")
 
         write(
