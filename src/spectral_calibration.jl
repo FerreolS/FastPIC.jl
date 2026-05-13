@@ -76,8 +76,13 @@ function compute_lasers_amplitudes(
             A[i, index] = A[index, i] = mw' * model[:, i]
         end
     end
-
-    return A \ b
+    amp = try
+        A \ b
+    catch e
+        @debug "Linear solve failed for laser amplitudes: $e. Using pseudo-inverse"
+        pinv(A) * b
+    end
+    return amp
 
 end
 
