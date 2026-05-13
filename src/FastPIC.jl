@@ -138,6 +138,7 @@ export FastPICParams,
     extract_spectra,
     flatten_spectra,
     get_wavelength
+    
 
 
 include("calibration.jl")
