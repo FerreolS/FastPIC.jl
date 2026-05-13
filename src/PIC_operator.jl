@@ -21,8 +21,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
     D = LinOpDiag(mtf)
     sz2 = (round(Int, sz[1] / 2) + 1, sz[2:end]...)
     C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
-    NF = LinOpNFFT(T, sz[1:2], points; sort_points = True())
-    II = LinOpMapslice(sz2, NF', [1, 2])
+    II = LinOpNFFT(T, sz, points; dims = [1, 2])'
 
     # MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
 
@@ -82,15 +81,15 @@ function build_LinOpIntegration_operators(profiles, λ; T = Float64)
     return LinOpIntegration(sizein, sizeout, L, C, V)
 end
 
-struct LinOpIntegration{I, O, T} <: LinOp{I, O}
+struct LinOpIntegration{I, O, T,R<: AbstractMatrix{Int32},C<: AbstractMatrix{Int32},V<: AbstractMatrix{T}} <: LinOp{I, O}
     inputspace::I
     outputspace::O
-    rows::Matrix{Int32}
-    cols::Matrix{Int32}
-    values::Matrix{T}
+    rows::R
+    cols::C
+    values::V
 end
 
-function LinOpIntegration(sizein::NTuple, sizeout::NTuple, rows::Matrix{Int32}, cols::Matrix{Int32}, values::Matrix{T}) where {T}
+function LinOpIntegration(sizein::NTuple, sizeout::NTuple, rows::AbstractMatrix{Int32}, cols::AbstractMatrix{Int32}, values::AbstractMatrix{T}) where {T}
     inputspace = LinOps.CoordinateSpace(sizein)
     outputspace = LinOps.CoordinateSpace(sizeout)
     return LinOpIntegration(inputspace, outputspace, rows, cols, values)
