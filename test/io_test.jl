@@ -22,7 +22,7 @@ using WeightedData: get_value, get_precision
     valid_lenslets = vcat(194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203, 1500, 1600, 1700, 1800, 1900, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
 
     calib_params = FastPICParams(; nλ = nλ)
-    profiles, template, transmission, lλ, lenslet_width = calibrate(
+    profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
         lamp,
         lasers,
         calib_params = calib_params,
@@ -32,7 +32,7 @@ using WeightedData: get_value, get_precision
 
     mktempdir() do tmpdir
         fitspath = normpath(tmpdir, "fit.fits")
-        @test_nowarn FastPIC.export_calib(fitspath, profiles, template, transmission, lλ)
+        @test_nowarn FastPIC.export_calib(fitspath, profiles, template, transmission, lλ, lenslet_width, lenslet_θ)
 
         lmap = FastPIC.get_lensletmap(profiles)
         local (lmap2, profiles2, template2, transmission2, lλ2)
