@@ -222,7 +222,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     profiles = filter_nothing(profiles)
     transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
-    return profiles, template, transmission, lλ, lenslet_width
+    return profiles, template, transmission, lλ, lenslet_width, lenslet_θ
 end
 
 function filter_nothing(x::AbstractVector)

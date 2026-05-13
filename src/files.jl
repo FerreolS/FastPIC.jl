@@ -1,12 +1,14 @@
 using AstroFITS, WeightedData, FastPIC, FITSexplore, FITSHeaders, LinOps, OptimPackNextGen, DifferentiationInterface, Zygote, RobustModels
+#folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/2025-10-20"
 folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/roots-18"
-
-filedict = fitsexplore(folder)
+filedict = fitsexplore(folder; recursive = false)
 
 specposfiles = deepcopy(filedict)
-filter_keyword!(specposfiles, Dict("ESO DPR TYPE" => ["SPECPOS,LAMP"]))
+filter_keyword!(specposfiles, Dict(("ESO DPR TYPE" => ["SPECPOS,LAMP"])))
+#filter_keyword!(specposfiles, Dict(("ESO DPR TYPE" => ["SPECPOS,LAMP"], "SD-REDUC" => true)))
 
 wavelampfiles = deepcopy(filedict)
+#filter_keyword!(wavelampfiles, Dict("ESO DPR TYPE" => ["WAVE,LAMP"], "SD-REDUC" => true))
 filter_keyword!(wavelampfiles, Dict("ESO DPR TYPE" => ["WAVE,LAMP"]))
 
 (length(specposfiles) != 1  || length(specposfiles) != 1)  && error("single calib")
@@ -37,7 +39,7 @@ lamp = mean(lamp, dims = 3)[:, :, 1]
 nλ = wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value == "PRI_YJ" ? 3 : 4
 
 calib_params = FastPICParams(; nλ = nλ)
-profiles, lamp_spectra, template, transmission, lλ, lenslet_index, lenslet_width = calibrate(
+profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
     lamp,
     lasers,
     calib_params = calib_params

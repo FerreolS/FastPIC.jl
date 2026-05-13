@@ -27,7 +27,7 @@
 
 
     calib_params = FastPICParams(; nλ = nλ)
-    profiles, template, transmission, lλ, lenslet_width = calibrate(
+    profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
         lamp,
         lasers,
         calib_params = calib_params,
