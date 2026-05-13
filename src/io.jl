@@ -1,4 +1,4 @@
-function export_calib(fitspath, profiles, template, transmission, lλ)
+function export_calib(fitspath, profiles, template, transmission, lλ, lenslet_width, lenslet_θ)
     return FitsFile(fitspath, "w!") do fits
 
         # === PRIMARY HDU "LMAP" (Image) === #
@@ -6,6 +6,9 @@ function export_calib(fitspath, profiles, template, transmission, lλ)
         lmaphdu = FitsImageHDU(fits, size(lmap); bitpix = 64) # eltype=Int64
         lmaphdu["EXTNAME"] = ("LMAP", "lenslets map")
         lmaphdu["HDUNAME"] = ("LMAP", "lenslets map")
+        lmaphdu["LENSDIST"] = (lenslet_width, "distance between lenslet centers in pixels")
+        lmaphdu["LENSROT"] = (rem(lenslet_θ / π * 180, 60.0, RoundNearest), "rotation angle of the lenslet grid in degrees")
+
         write(lmaphdu, lmap)
 
         # === HDU 2 "TEMPLATE" (Image) === #
