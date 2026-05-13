@@ -108,7 +108,7 @@ end
 """
     fit_laser(data::WeightedArray, laser::LaserModel)
 
-Fit laser line positions and widths to observed data using NEWUOA optimization.
+Fit laser line positions and widths to observed data using BOBYQA optimization.
 
 # Arguments
 - `data::WeightedArray`: Observed laser spectrum with uncertainties
@@ -129,7 +129,8 @@ function fit_laser(
     )
     vec, re = Optimisers.destructure(laser)
     f(x) = laser_cost(data, re(x))
-    Newuoa.optimize!(f, vec, 1.0, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
+    Bobyqa.optimize!(f, vec, 1.0, 40.0, 1.0, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
+    # Newuoa.optimize!(f, vec, 1.0, 1.0e-15; check = false, maxeval = 10_000, verbose = 0)
     return re(vec)
 end
 
