@@ -19,7 +19,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
 
     mtf = compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c)
     D = LinOpDiag(mtf)
-    sz2 = (round(Int, sz[1] / 2) + 1, sz[2:end]...)
+    sz2 = r2c ? (round(Int, sz[1] / 2) + 1, sz[2:end]...) : sz
     C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
     II = LinOpNFFT(T, sz, points; dims = [1, 2])'
 
@@ -77,8 +77,9 @@ function build_LinOpIntegration_operators(profiles, λ; T = Float64)
     end
     sizein = (Np, Nλ)
     sizeout = (Np, Nl)
-
-    return LinOpIntegration(sizein, sizeout, L, C, V)
+    inputspace = LinOps.TypedCoordinateSpace(T, sizein)
+    outputspace = LinOps.TypedCoordinateSpace(T, sizeout)
+    return LinOpIntegration(inputspace, outputspace, L, C, V)
 end
 
 struct LinOpIntegration{I, O, T,R<: AbstractMatrix{Int32},C<: AbstractMatrix{Int32},V<: AbstractMatrix{T}} <: LinOp{I, O}
