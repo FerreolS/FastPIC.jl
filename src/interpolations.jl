@@ -103,7 +103,7 @@ function build_sparse_interpolation_integration_coordinate_list(::Type{T}, knots
     lowersample, uppersamples = get_lower_uppersamples(get_wavelength(profile))
 
 
-    return build_sparse_interpolation_integration_coordinate_list(knots, lowersample, uppersamples; kernel = kernel)
+    return build_sparse_interpolation_integration_coordinate_list(map(T, knots), map(T, lowersample), map(T, uppersamples); kernel = kernel)
 
 end
 

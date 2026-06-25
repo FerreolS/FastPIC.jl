@@ -54,14 +54,14 @@ PIC = build_PIC_operators(profiles, Npix, λ, lenslet_width; pad = 5)
 objectfiles = deepcopy(filedict)
 filter_keyword!(objectfiles, Dict("ESO DPR TYPE" => ["OBJECT"]))
 
-mu = 1.0e-5
+mu = 1.0e-2
 G = LinOpGrad(LinOps.inputsize(PIC))
 loss = CauchyLoss()
 l = Base.Fix1(RobustModels.rho, loss)
 r(d, x) = sqrt.(WeightedData.get_precision(d)) .* (x .- WeightedData.get_value(d))
 
 for (filename, header) in objectfiles
-    if header["ESO INS2 OPTI2 NAME"].value == wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value
+    if haskey(header, "ESO INS2 OPTI2 NAME") && header["ESO INS2 OPTI2 NAME"].value == wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value
         ffile = openfits(filename)
         data = WeightedArray(read(ffile[1]), read(ffile[2]))
         close(ffile)
