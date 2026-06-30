@@ -99,4 +99,29 @@ ESO INS2 COMB IFS = 'OBS_H   ' /
 ESO INS2 MODE = 'IFS-H   ' / 
 ESO INS2 OPTI2 NAME = 'PRI_YJH ' / 
 ESO INS2 OPTI2 NAME = 'PRI_YJ  ' / IFS disperser selector 
+
+
+cpu(x) = adapt(Array, x)
+gpu(x) = adapt(CuArray, x)
+
+PIC = build_PIC_operators(profiles, 301, λ, lenslet_width; pad = 5, T=Float32)
+PIC_gpu = PIC |> gpu
+d_gpu = adapt(CuArray{Float32},d);
+mu = float32(mu)
+G = LinOpGrad(LinOps.inputsize(PIC))
+x0 = zeros(LinOps.inputspace(PIC));
+
+function ff_gpu(x)
+    xt =  gpu(x)
+    return loglikelihood(d_gpu, PIC_gpu * xt) + mu * sum(abs2, G * xt)
+end
+fg_gpu!(x, grad) = DifferentiationInterface.value_and_gradient!(ff_gpu, grad, AutoZygote(), x)[1]
+
+@time XXg = vmlmb(fg_gpu!,x0; maxeval = 100, verb = 50, lower = 0f0, xtol = (0f0, 1.0f-15));
+
+function fg!(x,grad)
+              (cost, ggrad) =  DifferentiationInterface.value_and_gradient(ff, AutoZygote(),x |> gpu)
+              copyto!(grad,ggrad)
+              return cost
+              end
 =#
