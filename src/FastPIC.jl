@@ -138,7 +138,6 @@ export FastPICParams,
     extract_spectra,
     flatten_spectra,
     get_wavelength
-    
 
 
 include("calibration.jl")
@@ -150,4 +149,5 @@ include("spectra_extraction.jl")
 include("transmission.jl")
 include("lenslet_position.jl")
 include("PIC_operator.jl")
+include("crosstalk.jl")
 end
