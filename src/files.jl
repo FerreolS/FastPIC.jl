@@ -103,11 +103,12 @@ ESO INS2 OPTI2 NAME = 'PRI_YJ  ' / IFS disperser selector
 
 cpu(x) = adapt(Array, x)
 gpu(x) = adapt(CuArray, x)
+d = flatten_spectra(lamp_spectra);
 
 PIC = build_PIC_operators(profiles, 301, λ, lenslet_width; pad = 5, T=Float32)
 PIC_gpu = PIC |> gpu
 d_gpu = adapt(CuArray{Float32},d);
-mu = float32(mu)
+mu = float(mu)
 G = LinOpGrad(LinOps.inputsize(PIC))
 x0 = zeros(LinOps.inputspace(PIC));
 

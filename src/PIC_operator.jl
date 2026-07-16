@@ -6,8 +6,8 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
     # cx = [ p.position[1] for p in profiles] ./ paddedinpix .* 2π
     # cy = [ p.position[2] for p in profiles] ./ paddedinpix .* 2π
 
-    cx = ([ p.position[1] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π
-    cy = ([ p.position[2] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π
+    cx = T.(([ p.position[1] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π)
+    cy = T.(([ p.position[2] for p in profiles] .+ (pad * 2048 / Npix)) ./ paddedinpix .* 2π)
     points = (cx, cy)
     lenslet_radius = lenslet_width / 2048 * Npix / 2
 
@@ -17,7 +17,7 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
         r2c = true
     end
 
-    mtf = compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c)
+    mtf = T.(compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c))
     D = LinOpDiag(mtf)
     sz2 = r2c ? (sz[1] ÷ 2 + 1, sz[2:end]...) : sz
     C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
