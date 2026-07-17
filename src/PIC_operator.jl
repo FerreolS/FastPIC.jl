@@ -27,8 +27,10 @@ function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad
 
     #  P = LinOpMapslice(outputsize(II), MI, 2)
     P = build_LinOpIntegration_operators(profiles, λ; T = T)
-    PIC = P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
-    return PIC
+
+    Xtlk = build_crosstalk_operator(profiles)
+    XPIC = Xtlk * P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
+    return XPIC
 
 end
 
@@ -77,8 +79,8 @@ function build_LinOpIntegration_operators(profiles, λ; T = Float64)
     end
     sizein = (Np, Nλ)
     sizeout = (Np, Nl)
-    inputspace = LinOps.CoordinateSpace(T, sizein)
-    outputspace = LinOps.CoordinateSpace(T, sizeout)
+    inputspace = LinOps.CoordinateSpace(sizein)
+    outputspace = LinOps.CoordinateSpace(sizeout)
     return LinOpIntegration(inputspace, outputspace, L, C, V)
 end
 
