@@ -402,3 +402,24 @@ function calibrate_spectral_transmission(
     end
     return trms
 end
+
+
+function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Float64)
+    detectorbbox = BoundingBox(1:2048, 1:2048)
+    model = zeros(T, 2048, 2048)
+    model_indices = LinearIndices(model)
+    model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
+    for (i, profile) in enumerate(profiles)
+        if isnothing(profile)
+            continue
+        end
+        lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
+        prfl = profile(lbox; normalize = true) .* reshape(modeled_spectra[i, :], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        bbox_indices = view(model_indices, CartesianIndices(lbox))
+        @inbounds for (k, idx) in enumerate(bbox_indices)
+            Atomix.@atomic model_view[idx] += prfl[k]
+        end
+    end
+
+    return model
+end
