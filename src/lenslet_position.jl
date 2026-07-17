@@ -150,7 +150,7 @@ function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshif
             boxes[i] = box
         end
     end
-    return grid[:, mask], boxes[mask]
+    return mask, boxes[mask]
 end
 
 function transform_grid(grid, x)
@@ -356,9 +356,9 @@ function initialize_bboxes(
     centers = centers[:, valid]
     grid, x = build_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
     poly_coefs = estimate_lenslet_warping(grid, centers; order = lenslets_warping_order)
-    grid = correct_lenslet_warping(grid, poly_coefs)
-    grid, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
-    return grid, bboxes, x[3], x[4]
+    warped_grid = correct_lenslet_warping(grid, poly_coefs)
+    valid_lenslets, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
+    return grid[:, valid_lenslets], warped_grid[:, valid_lenslets], bboxes, x[3], x[4]
 
 end
 

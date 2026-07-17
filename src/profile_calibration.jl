@@ -137,7 +137,8 @@ end
 function initialize_profile(
         bboxes,
         grid;
-        calib_params::FastPICParams = FastPICParams()
+        calib_params::FastPICParams = FastPICParams(),
+        centers = grid
     )
 
     @unpack_FastPICParams calib_params
@@ -151,7 +152,7 @@ function initialize_profile(
         if ismissing(bbox)
             profiles[i] = nothing
         else
-            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(grid[:, i]))
+            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(centers[:, i]))
         end
     end
     return profiles
@@ -283,6 +284,7 @@ function refine_lamp_model(
                     p = profiles[i](lbox)
                     if any(map(!isfinite, p))
                         #profiles[i] = nothing
+                        p[map(!isfinite, p)] .= T(0)
                         error("NaN found in profile for lenslet $i")
                     end
                     if any(map(x -> x < 0, p))
@@ -302,8 +304,8 @@ function refine_lamp_model(
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
-                    profiles[i] = nothing
-                    lamp_spectra[i] = nothing
+                    #     profiles[i] = nothing
+                    #    lamp_spectra[i] = nothing
                 end
             end
             isnothing(progress) || next!(progress)
