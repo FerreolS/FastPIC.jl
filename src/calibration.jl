@@ -212,8 +212,8 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 - Lenslets outside detector boundaries
 """
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = nothing)
-    grid, bboxes, lenslet_width, lenslet_θ = initialize_bboxes(lamp, lasers; calib_params = calib_params)
-    profiles = initialize_profile(bboxes, grid; calib_params = calib_params)
+    centers, grid, bboxes, lenslet_width, lenslet_θ = initialize_bboxes(lamp, lasers; calib_params = calib_params)
+    profiles = initialize_profile(bboxes, grid; calib_params = calib_params, centers = centers)
     if valid_lenslets !== nothing
         profiles = profiles[valid_lenslets]
     end

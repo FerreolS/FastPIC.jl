@@ -137,7 +137,8 @@ end
 function initialize_profile(
         bboxes,
         grid;
-        calib_params::FastPICParams = FastPICParams()
+        calib_params::FastPICParams = FastPICParams(),
+        centers = grid
     )
 
     @unpack_FastPICParams calib_params
@@ -151,7 +152,7 @@ function initialize_profile(
         if ismissing(bbox)
             profiles[i] = nothing
         else
-            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(grid[:, i]))
+            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(centers[:, i]))
         end
     end
     return profiles
@@ -283,6 +284,7 @@ function refine_lamp_model(
                     p = profiles[i](lbox)
                     if any(map(!isfinite, p))
                         #profiles[i] = nothing
+                        p[map(!isfinite, p)] .= T(0)
                         error("NaN found in profile for lenslet $i")
                     end
                     if any(map(x -> x < 0, p))
@@ -302,8 +304,8 @@ function refine_lamp_model(
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
-                    profiles[i] = nothing
-                    lamp_spectra[i] = nothing
+                    #     profiles[i] = nothing
+                    #    lamp_spectra[i] = nothing
                 end
             end
             isnothing(progress) || next!(progress)
@@ -401,4 +403,25 @@ function calibrate_spectral_transmission(
         trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profile))...) * lamp_template)))
     end
     return trms
+end
+
+
+function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Float64)
+    detectorbbox = BoundingBox(1:2048, 1:2048)
+    model = zeros(T, 2048, 2048)
+    model_indices = LinearIndices(model)
+    model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
+    for (i, profile) in enumerate(profiles)
+        if isnothing(profile)
+            continue
+        end
+        lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
+        prfl = profile(lbox; normalize = true) .* reshape(modeled_spectra[i, :], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        bbox_indices = view(model_indices, CartesianIndices(lbox))
+        @inbounds for (k, idx) in enumerate(bbox_indices)
+            Atomix.@atomic model_view[idx] += prfl[k]
+        end
+    end
+
+    return model
 end
