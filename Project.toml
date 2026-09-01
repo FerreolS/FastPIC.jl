@@ -41,7 +41,6 @@ ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
 
 [sources]
 FITSexplore = {rev = "master", url = "https://github.com/FerreolS/FITSexplore.jl"}
-AstroFITS = {rev = "main", url = "https://github.com/FerreolS/AstroFITS.jl"}
 LinOps = {url = "https://github.com/FerreolS/LinOps.jl"}
 
 [compat]
