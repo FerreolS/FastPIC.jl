@@ -43,4 +43,15 @@
         @test !FastPIC.is_calibrated(profile)
         @test_throws ArgumentError FastPIC.get_wavelength(profile)
     end
+
+    @testset "profile constructors share validation path" begin
+        bbox = FastPIC.BoundingBox(xmin = 1, xmax = 3, ymin = 1, ymax = 4)
+        shorthand = FastPIC.Profile(Float64, bbox, [2.5], [2.0], (3.0, 4.0))
+        explicit = FastPIC.Profile(Float64, bbox, mean(axes(bbox, 2)), [2.5], [2.0], nothing, (3.0, 4.0))
+        @test shorthand.bbox == explicit.bbox
+        @test shorthand.ycenter == explicit.ycenter
+        @test shorthand.cfwhm == explicit.cfwhm
+        @test shorthand.cx == explicit.cx
+        @test shorthand.position == explicit.position
+    end
 end
