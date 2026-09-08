@@ -43,6 +43,7 @@ struct Profile{T, N, C}
 end
 
 is_profile(value) = value isa Profile
+is_calibrated(profile::Profile) = profile.spectral_coefs isa AbstractVector{Float64}
 
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
@@ -227,6 +228,10 @@ end
 
 function get_wavelength(profile::Profile{T, N, <:AbstractVector{Float64}}) where {T, N}
     return get_wavelength(profile.spectral_coefs, profile.ycenter - profile.bbox.ymin, 1:size(profile.bbox, 2))
+end
+
+function get_wavelength(profile::Profile{T, N, Nothing}) where {T, N}
+    throw(ArgumentError("profile has not been wavelength-calibrated"))
 end
 
 function get_wavelength(profiles::AbstractVector{<:Union{Profile, LensletError}}; ntasks = 4 * Threads.nthreads())

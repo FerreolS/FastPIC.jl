@@ -1,4 +1,5 @@
 function build_PIC_operators(profiles, Npix, λ, lenslet_width; T = Float64, pad::Int = 0)
+    all(is_calibrated, profiles) || throw(ArgumentError("all profiles must be wavelength-calibrated to build a PIC operator"))
 
     paddedinpix = 2 * pad * 2048 / Npix + 2048
 

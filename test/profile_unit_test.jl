@@ -36,4 +36,11 @@
         @test FastPIC.get_bbox(1024, 1024) isa FastPIC.BoundingBox
         @test FastPIC.get_bbox(0, 0) === FastPIC.lenslet_out_of_bounds
     end
+
+    @testset "profile calibration state is explicit" begin
+        bbox = FastPIC.BoundingBox(xmin = 1, xmax = 3, ymin = 1, ymax = 4)
+        profile = FastPIC.Profile(Float64, bbox, [2.5], [2.0])
+        @test !FastPIC.is_calibrated(profile)
+        @test_throws ArgumentError FastPIC.get_wavelength(profile)
+    end
 end
