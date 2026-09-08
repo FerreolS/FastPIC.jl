@@ -37,7 +37,7 @@
     lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 0)
 
     λ = lλ[10:2:end]
-    PIC = build_PIC_operators(profiles, 300, λ, lenslet_width; pad = 5)
+    PIC = build_PIC_operators(profiles, 301, λ, lenslet_width; pad = 5)
 
 
     data = flatten_spectra(lamp_spectra)
@@ -48,7 +48,7 @@
     @test length(lamp_spectra) == length(profiles)
     @test length(template) == length(lλ)
 
-    valid = findall(!isnothing, profiles)
+    valid = findall(is_profile, profiles)
     @test !isempty(valid)
     @test all(isfinite, template)
     @test all(i -> all(isfinite, get_value(transmission[i])), valid)
