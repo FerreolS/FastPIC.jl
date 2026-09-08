@@ -136,7 +136,7 @@ function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshif
     boxes = Vector{BoundingBox{Int}}(undef, size(grid, 2))
     @inbounds   for i in axes(grid, 2)
         box = get_bbox(grid[1, i], grid[2, i]; bbox_params = bboxparams)
-        if box isa CalibrationError
+        if box isa LensletError
             mask[i] = false
             continue
         end
@@ -146,7 +146,7 @@ function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshif
         end
         if xshift_bbox
             shifted_box = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
-            if shifted_box isa CalibrationError
+            if shifted_box isa LensletError
                 mask[i] = false
             else
                 boxes[i] = shifted_box
@@ -346,7 +346,7 @@ function initialize_bboxes(
     valid = falses(size(centers, 2))
     @inbounds for i in axes(centers, 2)
         bbox = get_bbox(centers[1, i], centers[2, i]; bbox_params = bbox_params)
-        if bbox isa CalibrationError
+        if bbox isa LensletError
             continue
         end
         if get_value(mean(view(lamp, bbox))) < medlamp / lenslets_threshold

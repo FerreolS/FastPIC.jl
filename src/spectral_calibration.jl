@@ -249,7 +249,7 @@ explains all input spectra when convolved with their respective wavelength solut
 - `Tuple{Vector{Float64}, Vector{Float64}}`: Template spectrum and transmission factors
 """
 function estimate_template(
-    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+    profiles::AbstractVector{<:Union{Profile, LensletError}},
         λ,
         spectra;
         regul = 1
@@ -407,7 +407,7 @@ Performs iterative refinement where each iteration:
 - `Tuple{Vector, Vector{Float64}, Vector{Float64}}`: Refined coefficients, template, transmission
 """
 function recalibrate_wavelengths(
-    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+    profiles::AbstractVector{<:Union{Profile, LensletError}},
         λ,
         order,
         lamp_spectra,
@@ -429,7 +429,7 @@ function recalibrate_wavelengths(
     for _ in 1:loop
         profiles = @localize template  tmap(profiles, 1:length(profiles); ntasks = ntasks) do profile, i
             if !is_profile(profile)
-                return nothing
+                return profile
             end
             spectral_coefs = profile.spectral_coefs
             if (order + 1) > length(spectral_coefs)
@@ -443,7 +443,7 @@ function recalibrate_wavelengths(
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
-                profile = calibration_fit_failed
+                profile = lenslet_profile_fit_failed
             end
             isnothing(progressbar) || next!(progressbar)
             return profile
@@ -489,11 +489,11 @@ coefs, template, transmission, λ_grid, valid = spectral_calibration(
 ```
 """
 function spectral_calibration(
-    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+    profiles::AbstractVector{<:Union{Profile, LensletError}},
         lasers::WeightedArray{T, 2},
         lamp_spectra::Vector{L};
         calib_params::FastPICParams = FastPICParams()
-    ) where {T, L <: Union{Nothing, WeightedArray{T, 1}}}
+    ) where {T, L <: Union{LensletError, WeightedArray{T, 1}}}
 
     @unpack_FastPICParams calib_params
 
@@ -537,7 +537,7 @@ Extract and fit laser spectra to establish initial wavelength calibrations.
   - Updated valid lenslets mask
 
 # Side Effects
-Updates the `profiles` vector in-place, setting invalid entries to `nothing`.
+Updates the `profiles` vector in-place, setting invalid entries to `LensletError` values.
 """
 function laser_calibration!(
         ::Type{L},
@@ -555,7 +555,7 @@ function laser_calibration!(
     las = Vector{typeof(laser_model)}(undef, NLENS)
 
     fill!(λs, nothing)
-    fill!(laser_spectra, nothing)
+    fill!(laser_spectra, lenslet_spectrum_extraction_failed)
     valid_lenslets = map(is_profile, profiles)
     progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
@@ -584,7 +584,7 @@ function laser_calibration!(
                 profiles[i] = profile
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                profiles[i] = calibration_missing_wavelength
+                profiles[i] = lenslet_missing_wavelength
             end
         end
         isnothing(progressbar) || next!(progressbar)

@@ -133,7 +133,7 @@ import Accessors: @reset
 import WeightedData: ScaledL2Loss, get_value, loglikelihood
 
 export FastPICParams,
-    CalibrationError,
+    LensletError,
     is_profile,
     build_PIC_operators,
     calibrate,

@@ -32,17 +32,17 @@ bbox_params = BboxParams()
 end
 
 """
-    CalibrationError
+    LensletError
 
 Error values used to describe why calibration failed for one lenslet. A
 successful calibration is represented by a `Profile`, not by an enum value.
 """
-@enum CalibrationError begin
-    calibration_out_of_bounds
-    calibration_invalid_data
-    calibration_fit_failed
-    calibration_missing_wavelength
-    calibration_extraction_failed
+@enum LensletError begin
+    lenslet_out_of_bounds
+    lenslet_invalid_data
+    lenslet_profile_fit_failed
+    lenslet_missing_wavelength
+    lenslet_spectrum_extraction_failed
 end
 
 """
@@ -237,17 +237,6 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles = filter_profiles(profiles)
     transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
     return profiles, template, transmission, lλ, lenslet_width, lenslet_θ
-end
-
-function filter_nothing(x::AbstractVector)
-    T = Base.typesplit(eltype(x), Nothing)
-    T === Union{} && return T[]
-    mask = .!isnothing.(x)
-    y = Vector{T}(undef, count(mask))
-    @inbounds for (j, v) in enumerate(x[mask])
-        y[j] = v::T
-    end
-    return y
 end
 
 function filter_profiles(x::AbstractVector)

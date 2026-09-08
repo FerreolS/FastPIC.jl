@@ -69,17 +69,19 @@ Parallelized version of `extract_spectrum` for processing multiple traces simult
 
 # Arguments
 - `data`: Input weighted data (2D or 3D)
-- `profiles`: Vector of Profile objects (Nothing for invalid traces)
+- `profiles`: Vector of Profile objects or `LensletError` values for invalid traces
 - `restrict`: Profile truncation threshold
 - `nonnegative`: Enforce non-negative extracted values
 - `ntasks`: Number of parallel tasks for processing
 
 # Returns
-- `Vector{Union{WeightedArray{T,1}, Nothing}}`: Array of extracted spectra
+- `Vector{Union{WeightedArray{T,1}, LensletError}}`: Array of extracted spectra
 """
+is_spectrum(value) = value isa WeightedArray
+
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::AbstractVector{<:Union{Profile, CalibrationError}};
+        profiles::AbstractVector{<:Union{Profile, LensletError}};
         transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
@@ -89,8 +91,10 @@ function extract_spectra(
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     profile_type = ZippedArray{WeightedValue{T}, N - 1, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
-    spectra = Vector{Union{profile_type, Nothing}}(undef, length(profiles))
-    fill!(spectra, nothing)
+    spectra = Vector{Union{profile_type, LensletError}}(undef, length(profiles))
+    for i in eachindex(spectra, profiles)
+        spectra[i] = is_profile(profiles[i]) ? lenslet_spectrum_extraction_failed : profiles[i]
+    end
 
     if refinement_loop > 0
         if N == 3
@@ -112,7 +116,11 @@ function extract_spectra(
         end
     else
         @localize spectra tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-            spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
+            try
+                spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
+            catch
+                spectra[i] = lenslet_spectrum_extraction_failed
+            end
         end
     end
     if transmission isa FastUniformArray
@@ -121,7 +129,9 @@ function extract_spectra(
 
     if Base.typesplit(eltype(transmission), Nothing) <: Real
         @localize spectra  tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-            spectra[i] = spectra[i] ./ T(transmission[i])
+            if is_spectrum(spectra[i])
+                spectra[i] = spectra[i] ./ T(transmission[i])
+            end
         end
     else
         spectra = correct_spectral_transmission(spectra, transmission)
@@ -137,15 +147,16 @@ Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of 
 
 
 function correct_spectral_transmission(
-        spectra::Vector{<:Union{Nothing, WeightedArray}},
+        spectra::Vector{<:Union{LensletError, WeightedArray}},
         transmission
     )
     corrected = similar(spectra)
-    fill!(corrected, nothing)
-    first_valid = findfirst(!isnothing, spectra)
-    spectra[first_valid] === nothing && return corrected
-    T = eltype(get_value(spectra[first_valid]))
-    tforeach(findall(!isnothing, spectra); ntasks = 4 * Threads.nthreads()) do i
+    fill!(corrected, lenslet_spectrum_extraction_failed)
+    first_valid = findfirst(is_spectrum, spectra)
+    first_valid === nothing && return corrected
+    first_spectrum = spectra[first_valid]::WeightedArray
+    T = eltype(get_value(first_spectrum))
+    tforeach(findall(is_spectrum, spectra); ntasks = 4 * Threads.nthreads()) do i
         (; value, precision) = transmission[i]
         spec_val = get_value(spectra[i])
         spec_prec = spectra[i].precision
@@ -159,7 +170,7 @@ end
 """
     estimate_shift(
         data::WeightedArray,
-        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         profile_wavelength::Vector{<:Union{Nothing, AbstractVector{Float64}}},
         transmission::Vector{Float64},
         template::Vector{Float64},
@@ -199,7 +210,7 @@ This function computes an optimal shift in the X direction (perpendicular to the
 
 function estimate_shift(
         data::WeightedArray{T, N},
-        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         models::Vector{<:Union{Nothing, Vector{Float64}}};
         ntasks = 4 * Threads.nthreads(),
         restrict = 0,
@@ -221,7 +232,7 @@ function estimate_shift(
 end
 
 function make_models(
-        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         transmission::Vector{Float64},
         template::Vector{Float64},
         λ::AbstractVector{Float64};
@@ -242,8 +253,8 @@ function make_models(
 end
 
 
-function flatten_spectra(spectra::AbstractVector{<:Union{Nothing, WeightedArray}})
-    spectra = filter_nothing(spectra)
+function flatten_spectra(spectra::AbstractVector{<:Union{LensletError, WeightedArray}})
+    spectra = collect(spectra[map(is_spectrum, spectra)])
     sp1 = first(spectra)
     T = eltype(sp1.value)
     N = ndims(sp1)

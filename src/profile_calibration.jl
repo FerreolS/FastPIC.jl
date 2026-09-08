@@ -15,7 +15,7 @@ This function performs a complete profile calibration workflow:
 - `valid_lenslets::AbstractVector{Bool}`: Boolean mask for valid lenslets (default: all true)
 
 # Returns
-- `Tuple{Vector{Union{Profile,CalibrationError}}, Vector{Union{WeightedArray,Nothing}}}`:
+- `Tuple{Vector{Union{Profile,LensletError}}, Vector{Union{WeightedArray,LensletError}}}`:
   - Fitted profile models for each lenslet
   - Extracted lamp spectra for each lenslet
 
@@ -42,8 +42,8 @@ function calibrate_profile(
 
 
     profile_type = ZippedVector{WeightedValue{T}, 2, true, Tuple{Vector{T}, Vector{T}}}
-    lamp_spectra = Vector{Union{profile_type, Nothing}}(undef, NLENS)
-    fill!(lamp_spectra, nothing)
+    lamp_spectra = Vector{Union{profile_type, LensletError}}(undef, NLENS)
+    fill!(lamp_spectra, lenslet_spectrum_extraction_failed)
 
     valid_lenslets = valid_lenslets .& map(is_profile, profiles)
     progress = nothing
@@ -51,9 +51,10 @@ function calibrate_profile(
 
     @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
         if !is_profile(profiles[i])
-            nothing
+            lamp_spectra[i] = profiles[i]
         elseif sum(view(lamp, profiles[i].bbox).precision) == 0
-            profiles[i] = calibration_invalid_data
+            profiles[i] = lenslet_invalid_data
+            lamp_spectra[i] = lenslet_invalid_data
         else
             try
                 #profiles[i].cx[1] = get_meanx(lamp, profiles[i].bbox)
@@ -61,11 +62,19 @@ function calibrate_profile(
                 if any(isnan.(profiles[i].cfwhm))
                     throw("NaN found in profile for lenslet $i")
                 end
-                lamp_spectra[i] = extract_spectrum(lamp, profiles[i]; restrict = lamp_extract_restrict, nonnegative = true)
-
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                profiles[i] = calibration_fit_failed
+                profiles[i] = lenslet_profile_fit_failed
+                lamp_spectra[i] = lenslet_profile_fit_failed
+            end
+            if is_profile(profiles[i])
+                try
+                    lamp_spectra[i] = extract_spectrum(lamp, profiles[i]; restrict = lamp_extract_restrict, nonnegative = true)
+                catch e
+                    @debug "Spectrum extraction failed on lenslet $i" exception = (e, catch_backtrace())
+                    profiles[i] = lenslet_spectrum_extraction_failed
+                    lamp_spectra[i] = lenslet_spectrum_extraction_failed
+                end
             end
         end
         isnothing(progress) || next!(progress)
@@ -101,7 +110,7 @@ Updates the `valid_lenslets` mask in-place if any lenslets are found to be inval
 - `calib_params::FastPICParams`: Configuration parameters
 
 # Returns
-- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,CalibrationError}}}`:
+- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,LensletError}}}`:
   - Bounding boxes for each lenslet
   - Initial profile models for each lenslet
 # Side Effects
@@ -118,13 +127,13 @@ function initialize_profile!(
 
 
     bboxes = fill(BoundingBox{Int}(), NLENS)
-    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, CalibrationError}}(undef, NLENS)
-    fill!(profiles, calibration_invalid_data)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, LensletError}}(undef, NLENS)
+    fill!(profiles, lenslet_invalid_data)
 
     @inbounds for i in findall(valid_lenslets)
         bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
-        if bbox isa CalibrationError
-            profiles[i] = calibration_out_of_bounds
+        if bbox isa LensletError
+            profiles[i] = lenslet_out_of_bounds
         else
             bboxes[i] = bbox
             profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(get_meanx(lamp, bbox), zeros(profile_order)))
@@ -144,11 +153,11 @@ function initialize_profile(
     @unpack_BboxParams bbox_params
 
     NLENS = length(bboxes)
-    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, CalibrationError}}(undef, NLENS)
-    fill!(profiles, calibration_invalid_data)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, LensletError}}(undef, NLENS)
+    fill!(profiles, lenslet_invalid_data)
 
     @inbounds for (i, bbox) in enumerate(bboxes)
-        if bbox isa CalibrationError
+        if bbox isa LensletError
         else
             profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(centers[:, i]))
         end
@@ -184,7 +193,7 @@ Performs multiple iterations of profile fitting where each iteration:
 - `ntasks = 4*Threads.nthreads()`: Number of parallel tasks
 
 # Returns
-- `Tuple{Vector{Union{Profile,CalibrationError}}, Vector{Union{WeightedArray,Nothing}}, Array}`:
+- `Tuple{Vector{Union{Profile,LensletError}}, Vector{Union{WeightedArray,LensletError}}, Array}`:
   - Refined profile models
   - Refined extracted spectra  
   - Forward model of the lamp data
@@ -247,7 +256,7 @@ function refine_lamp_model(
             #foreach(eachindex(profiles, lamp_spectra)) do i
             if !is_profile(profiles[i])
                 nothing
-            elseif (lamp_spectra[i] === nothing)
+            elseif !is_spectrum(lamp_spectra[i])
                 nothing
             else
                 try
@@ -302,8 +311,8 @@ function refine_lamp_model(
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
-                    #     profiles[i] = nothing
-                    #    lamp_spectra[i] = nothing
+                    profiles[i] = lenslet_spectrum_extraction_failed
+                    lamp_spectra[i] = lenslet_spectrum_extraction_failed
                 end
             end
             isnothing(progress) || next!(progress)
@@ -376,12 +385,12 @@ function calibrate_spectral_transmission(
         lamp_template,
         templateλ
     )
-    trms = Vector{Union{Nothing, WeightedArray{Float64, 1}}}(undef, length(profiles))
-    fill!(trms, nothing)
+    trms = Vector{Union{LensletError, WeightedArray{Float64, 1}}}(undef, length(profiles))
+    fill!(trms, lenslet_invalid_data)
 
     for i in findall(is_profile, profiles)
-        if isnothing(lamp_spectra[i])
-            @show "lamp spectrum is nothing for lenslet $i"
+        if !is_spectrum(lamp_spectra[i])
+            @show "lamp spectrum extraction failed for lenslet $i"
             trms[i] = WeightedArray(ones(Float64, length(get_wavelength(profiles[i]))))
         else
             trms[i] = (lamp_spectra[i] ./ ((build_sparse_interpolation_integration_matrix(templateλ, get_lower_uppersamples(get_wavelength(profiles[i]))...) * lamp_template)))

@@ -1,15 +1,15 @@
 function spectral_regridding(
-        data_spectra::Vector{<:Union{WeightedArray{T, 1}, Nothing}},
+        data_spectra::Vector{<:Union{WeightedArray{T, 1}, LensletError}},
         profile_wavelength::Vector{<:Union{AbstractVector{Float64}, Nothing}},
         λ_grid::AbstractVector{Float64};
         ntasks = 4 * Threads.nthreads(),
     ) where {T <: Real}
 
-    regridded_spectra = Vector{Union{WeightedArray{Float64, 1}, Nothing}}(undef, length(data_spectra))
-    fill!(regridded_spectra, nothing)
+    regridded_spectra = Vector{Union{WeightedArray{Float64, 1}, LensletError}}(undef, length(data_spectra))
+    fill!(regridded_spectra, lenslet_spectrum_extraction_failed)
     #    @localize regridded_spectra tforeach(findall(!isnothing, data_spectra); ntasks = ntasks) do i
-    foreach(findall(!isnothing, data_spectra)) do i
-        if !isnothing(profile_wavelength[i])
+    foreach(findall(is_spectrum, data_spectra)) do i
+        if profile_wavelength[i] isa AbstractVector
             widx = findall(x -> x > 0, data_spectra[i].precision)
             if length(widx) > 1
                 itp_value = Interpolations.extrapolate(Interpolations.interpolate((profile_wavelength[i][widx],), data_spectra[i].value[widx], Gridded(Linear())), T(0.0))
@@ -23,13 +23,13 @@ end
 
 using ScatteredInterpolation
 function spatial_regridding(
-        spectral_reggridded_spectra::Vector{<:Union{WeightedArray{T, 1}, Nothing}},
-        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
+        spectral_reggridded_spectra::Vector{<:Union{WeightedArray{T, 1}, LensletError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         n;
         ntasks = 4 * Threads.nthreads(),
     ) where {T <: Real}
 
-    idx = findall(!isnothing, spectral_reggridded_spectra)
+    idx = findall(is_spectrum, spectral_reggridded_spectra)
     spectral_len = length(spectral_reggridded_spectra[idx[1]])
     spectra_values = Matrix{T}(undef, spectral_len, length(idx))
     spectra_precision = Matrix{T}(undef, spectral_len, length(idx))
