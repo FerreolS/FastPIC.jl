@@ -96,52 +96,6 @@ function calibrate_profile(
     return profiles, lamp_spectra
 end
 
-"""
-    initialize_profile!(valid_lenslets, lamp; calib_params::FastPICParams = FastPICParams())
-
-Initialize profile models and bounding boxes for spectral extraction.
-
-Creates initial profile models for each valid lenslet using configuration parameters.
-Updates the `valid_lenslets` mask in-place if any lenslets are found to be invalid.
-
-# Arguments
-- `valid_lenslets`: Boolean vector indicating valid lenslets (modified in-place)
-- `lamp`: Input lamp data for determining bounding boxes
-- `calib_params::FastPICParams`: Configuration parameters
-
-# Returns
-- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,LensletError}}}`:
-  - Bounding boxes for each lenslet
-  - Initial profile models for each lenslet
-# Side Effects
-Modifies `valid_lenslets` in-place, setting invalid lenslets to `false`.
-"""
-function initialize_profile!(
-        lamp;
-        calib_params::FastPICParams = FastPICParams(),
-        valid_lenslets = trues(calib_params.NLENS)
-    )
-
-    @unpack_FastPICParams calib_params
-    @unpack_BboxParams bbox_params
-
-
-    bboxes = fill(BoundingBox{Int}(), NLENS)
-    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, LensletError}}(undef, NLENS)
-    fill!(profiles, lenslet_invalid_data)
-
-    @inbounds for i in findall(valid_lenslets)
-        bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
-        if bbox isa LensletError
-            profiles[i] = lenslet_out_of_bounds
-        else
-            bboxes[i] = bbox
-            profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(get_meanx(lamp, bbox), zeros(profile_order)))
-        end
-    end
-    return bboxes, profiles
-end
-
 function initialize_profile(
         bboxes,
         grid;
