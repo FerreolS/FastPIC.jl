@@ -31,4 +31,9 @@
         @test result[1].value[2] == 0
         @test result[1].precision[2] == 0
     end
+
+    @testset "get_bbox reports geometry status" begin
+        @test FastPIC.get_bbox(1024, 1024) isa FastPIC.BoundingBox
+        @test FastPIC.get_bbox(0, 0) === FastPIC.calibration_out_of_bounds
+    end
 end

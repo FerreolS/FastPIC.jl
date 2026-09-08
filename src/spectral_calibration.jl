@@ -249,14 +249,14 @@ explains all input spectra when convolved with their respective wavelength solut
 - `Tuple{Vector{Float64}, Vector{Float64}}`: Template spectrum and transmission factors
 """
 function estimate_template(
-        profiles::AbstractVector{<:Union{Nothing, Profile}},
+    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         λ,
         spectra;
         regul = 1
     )
     nλ = length(λ)
-    valid_lenslets = map(!isnothing, profiles)
-    transmission = zeros(Float64, length(valid_lenslets))
+    valid_lenslets = map(is_profile, profiles)
+    transmission = ones(Float64, length(valid_lenslets))
     MI = Vector{SparseMatrixCSC{Float64, Int}}(undef, length(valid_lenslets))
     if regul == 0
         A = zeros(Float64, nλ, nλ)
@@ -407,7 +407,7 @@ Performs iterative refinement where each iteration:
 - `Tuple{Vector, Vector{Float64}, Vector{Float64}}`: Refined coefficients, template, transmission
 """
 function recalibrate_wavelengths(
-        profiles::AbstractVector{<:Union{Nothing, Profile}},
+    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         λ,
         order,
         lamp_spectra,
@@ -419,7 +419,7 @@ function recalibrate_wavelengths(
         regul = 1,
         loop = 2 # TODO put in calib_params
     )
-    valid_lenslets = map(!isnothing, profiles)
+    valid_lenslets = map(is_profile, profiles)
 
     template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = regul)
 
@@ -428,7 +428,7 @@ function recalibrate_wavelengths(
 
     for _ in 1:loop
         profiles = @localize template  tmap(profiles, 1:length(profiles); ntasks = ntasks) do profile, i
-            if isnothing(profile)
+            if !is_profile(profile)
                 return nothing
             end
             spectral_coefs = profile.spectral_coefs
@@ -443,7 +443,7 @@ function recalibrate_wavelengths(
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
-                profile = nothing
+                profile = calibration_fit_failed
             end
             isnothing(progressbar) || next!(progressbar)
             return profile
@@ -489,7 +489,7 @@ coefs, template, transmission, λ_grid, valid = spectral_calibration(
 ```
 """
 function spectral_calibration(
-        profiles::AbstractVector{<:Union{Nothing, Profile}},
+    profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         lasers::WeightedArray{T, 2},
         lamp_spectra::Vector{L};
         calib_params::FastPICParams = FastPICParams()
@@ -556,7 +556,7 @@ function laser_calibration!(
 
     fill!(λs, nothing)
     fill!(laser_spectra, nothing)
-    valid_lenslets = map(!isnothing, profiles)
+    valid_lenslets = map(is_profile, profiles)
     progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
     tforeach(findall(valid_lenslets); ntasks = ntasks) do i
@@ -584,7 +584,7 @@ function laser_calibration!(
                 profiles[i] = profile
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                profiles[i] = nothing
+                profiles[i] = calibration_missing_wavelength
             end
         end
         isnothing(progressbar) || next!(progressbar)

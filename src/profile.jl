@@ -42,6 +42,8 @@ struct Profile{T, N, C}
     end
 end
 
+is_profile(value) = value isa Profile
+
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
 # Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) = Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
@@ -161,7 +163,7 @@ and offsets determined by the bbox_params configuration.
 - `bbox_params`: Configuration for bounding box dimensions
 
 # Returns
-- `BoundingBox{Int}` if valid, `missing` if out of detector bounds
+- `BoundingBox{Int}` if valid, or `calibration_out_of_bounds` if outside the detector
 """
 function get_bbox(center_x::Real, center_y::Real; bbox_params::BboxParams = BboxParams())
     @unpack_BboxParams bbox_params
@@ -176,8 +178,8 @@ function get_bbox(center_x::Real, center_y::Real; bbox_params::BboxParams = Bbox
         RoundNearestTiesUp
     ) # rounding mode to preserve bbox size
 
-    size(bbox) == (BBOX_WIDTH, BBOX_HEIGHT) || return missing
-    ((bbox.xmin ≥ 1) & (bbox.xmax ≤ 2048) & (bbox.ymin ≥ 1) & (bbox.ymax ≤ 2048)) || return missing
+    size(bbox) == (BBOX_WIDTH, BBOX_HEIGHT) || return calibration_out_of_bounds
+    ((bbox.xmin ≥ 1) & (bbox.xmax ≤ 2048) & (bbox.ymin ≥ 1) & (bbox.ymax ≤ 2048)) || return calibration_out_of_bounds
     return bbox
 end
 
@@ -227,10 +229,10 @@ function get_wavelength(profile::Profile{T, N, <:AbstractVector{Float64}}) where
     return get_wavelength(profile.spectral_coefs, profile.ycenter - profile.bbox.ymin, 1:size(profile.bbox, 2))
 end
 
-function get_wavelength(profiles::Vector{<:Union{Nothing, Profile}}; ntasks = 4 * Threads.nthreads())
+function get_wavelength(profiles::AbstractVector{<:Union{Profile, CalibrationError}}; ntasks = 4 * Threads.nthreads())
     wvlngth = tmap(profiles; ntasks = ntasks) do p
-        if isnothing(p)
-            return nothing
+        if !is_profile(p)
+            return p isa CalibrationError ? p : calibration_invalid_data
         else
             return get_wavelength(p)
         end

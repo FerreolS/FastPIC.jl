@@ -25,7 +25,7 @@ function compute_cross_talk(profiles::Vector{<:Profile{T}}) where {T}
     sizehint!(J, nelements * 2)
     sizehint!(V, nelements * 2)
     for (idx, profile) in enumerate(profiles)
-        if isnothing(profile)
+        if !is_profile(profile)
             continue
         end
         bbox = profile.bbox

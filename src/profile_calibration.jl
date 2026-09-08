@@ -15,7 +15,7 @@ This function performs a complete profile calibration workflow:
 - `valid_lenslets::AbstractVector{Bool}`: Boolean mask for valid lenslets (default: all true)
 
 # Returns
-- `Tuple{Vector{Union{Profile,Nothing}}, Vector{Union{WeightedArray,Nothing}}}`: 
+- `Tuple{Vector{Union{Profile,CalibrationError}}, Vector{Union{WeightedArray,Nothing}}}`:
   - Fitted profile models for each lenslet
   - Extracted lamp spectra for each lenslet
 
@@ -45,15 +45,15 @@ function calibrate_profile(
     lamp_spectra = Vector{Union{profile_type, Nothing}}(undef, NLENS)
     fill!(lamp_spectra, nothing)
 
-    valid_lenslets = valid_lenslets .& map(!isnothing, profiles)
+    valid_lenslets = valid_lenslets .& map(is_profile, profiles)
     progress = nothing
     profile_calibration_verbose && (progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true))
 
     @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
-        if isnothing(profiles[i])
+        if !is_profile(profiles[i])
             nothing
         elseif sum(view(lamp, profiles[i].bbox).precision) == 0
-            profiles[i] = nothing
+            profiles[i] = calibration_invalid_data
         else
             try
                 #profiles[i].cx[1] = get_meanx(lamp, profiles[i].bbox)
@@ -65,7 +65,7 @@ function calibrate_profile(
 
             catch e
                 @debug "Error on lenslet $i" exception = (e, catch_backtrace())
-                profiles[i] = nothing
+                profiles[i] = calibration_fit_failed
             end
         end
         isnothing(progress) || next!(progress)
@@ -101,10 +101,9 @@ Updates the `valid_lenslets` mask in-place if any lenslets are found to be inval
 - `calib_params::FastPICParams`: Configuration parameters
 
 # Returns
-- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,Nothing}}}`:
+- `Tuple{Vector{BoundingBox}, Vector{Union{Profile,CalibrationError}}}`:
   - Bounding boxes for each lenslet
   - Initial profile models for each lenslet
-
 # Side Effects
 Modifies `valid_lenslets` in-place, setting invalid lenslets to `false`.
 """
@@ -119,13 +118,13 @@ function initialize_profile!(
 
 
     bboxes = fill(BoundingBox{Int}(), NLENS)
-    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
-    fill!(profiles, nothing)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, CalibrationError}}(undef, NLENS)
+    fill!(profiles, calibration_invalid_data)
 
     @inbounds for i in findall(valid_lenslets)
         bbox = get_bbox(lasers_cxy0s_init[i, 1], lasers_cxy0s_init[i, 2]; bbox_params = bbox_params)
-        if ismissing(bbox)
-            profiles[i] = nothing
+        if bbox isa CalibrationError
+            profiles[i] = calibration_out_of_bounds
         else
             bboxes[i] = bbox
             profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(get_meanx(lamp, bbox), zeros(profile_order)))
@@ -145,12 +144,11 @@ function initialize_profile(
     @unpack_BboxParams bbox_params
 
     NLENS = length(bboxes)
-    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, Nothing}}(undef, NLENS)
-    fill!(profiles, nothing)
+    profiles = Vector{Union{Profile{profile_precision, ndims(lamp_cfwhms_init)}, CalibrationError}}(undef, NLENS)
+    fill!(profiles, calibration_invalid_data)
 
     @inbounds for (i, bbox) in enumerate(bboxes)
-        if ismissing(bbox)
-            profiles[i] = nothing
+        if bbox isa CalibrationError
         else
             profiles[i] = Profile(profile_precision, bbox, lamp_cfwhms_init, vcat(grid[1, i], zeros(profile_order)), Tuple(centers[:, i]))
         end
@@ -186,7 +184,7 @@ Performs multiple iterations of profile fitting where each iteration:
 - `ntasks = 4*Threads.nthreads()`: Number of parallel tasks
 
 # Returns
-- `Tuple{Vector{Union{Profile,Nothing}}, Vector{Union{WeightedArray,Nothing}}, Array}`:
+- `Tuple{Vector{Union{Profile,CalibrationError}}, Vector{Union{WeightedArray,Nothing}}, Array}`:
   - Refined profile models
   - Refined extracted spectra  
   - Forward model of the lamp data
@@ -230,7 +228,7 @@ function refine_lamp_model(
     model = WeightedArray(model_value, model_precision)
 
     profiles = deepcopy(profiles)
-    valid_lenslets = map(!isnothing, profiles)
+    valid_lenslets = map(is_profile, profiles)
     progress = nothing
     verbose && (progress = Progress(sum(valid_lenslets) .* profile_loop; desc = "Profiles refinement ($profile_loop loops)", showspeed = true))
 
@@ -247,7 +245,7 @@ function refine_lamp_model(
         #@localize profiles @localize lamp_spectra @localize res @localize progress
         @localize res @localize progress OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
             #foreach(eachindex(profiles, lamp_spectra)) do i
-            if (profiles[i] === nothing)
+            if !is_profile(profiles[i])
                 nothing
             elseif (lamp_spectra[i] === nothing)
                 nothing
@@ -381,7 +379,7 @@ function calibrate_spectral_transmission(
     trms = Vector{Union{Nothing, WeightedArray{Float64, 1}}}(undef, length(profiles))
     fill!(trms, nothing)
 
-    for i in findall(!isnothing, profiles)
+    for i in findall(is_profile, profiles)
         if isnothing(lamp_spectra[i])
             @show "lamp spectrum is nothing for lenslet $i"
             trms[i] = WeightedArray(ones(Float64, length(get_wavelength(profiles[i]))))
@@ -412,7 +410,7 @@ function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Fl
     model_indices = LinearIndices(model)
     model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
     for (i, profile) in enumerate(profiles)
-        if isnothing(profile)
+        if !is_profile(profile)
             continue
         end
         lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox

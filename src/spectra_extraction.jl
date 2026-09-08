@@ -79,7 +79,7 @@ Parallelized version of `extract_spectrum` for processing multiple traces simult
 """
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::Vector{<:Union{Nothing, Profile}};
+        profiles::AbstractVector{<:Union{Profile, CalibrationError}};
         transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
@@ -95,14 +95,14 @@ function extract_spectra(
     if refinement_loop > 0
         if N == 3
             nframes = size(data, 3)
-            foreach(findall(!isnothing, profiles)) do i
+            foreach(findall(is_profile, profiles)) do i
                 ny = size(profiles[i].bbox, 2)
                 spectra[i] = WeightedArray(zeros(T, ny, nframes), zeros(T, ny, nframes))
             end
             for t in axes(data, 3)
                 #   tforeach(axes(data, 3); ntasks = ntasks) do t
                 _, spctr, _ = refine_lamp_model(view(data, :, :, t), profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
-                foreach(findall(!isnothing, profiles)) do i
+                foreach(findall(is_profile, profiles)) do i
                     spectra[i].value[:, t] .= spctr[i].value
                     spectra[i].precision[:, t] .= spctr[i].precision
                 end
@@ -111,7 +111,7 @@ function extract_spectra(
             _, spectra, _ = refine_lamp_model(data, profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
         end
     else
-        @localize spectra tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
+        @localize spectra tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
             spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
         end
     end
@@ -120,7 +120,7 @@ function extract_spectra(
     end
 
     if Base.typesplit(eltype(transmission), Nothing) <: Real
-        @localize spectra  tforeach(findall(!isnothing, profiles); ntasks = ntasks) do i
+        @localize spectra  tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
             spectra[i] = spectra[i] ./ T(transmission[i])
         end
     else
@@ -159,7 +159,7 @@ end
 """
     estimate_shift(
         data::WeightedArray,
-        profiles::Vector{<:Union{Nothing, Profile}},
+        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         profile_wavelength::Vector{<:Union{Nothing, AbstractVector{Float64}}},
         transmission::Vector{Float64},
         template::Vector{Float64},
@@ -199,14 +199,14 @@ This function computes an optimal shift in the X direction (perpendicular to the
 
 function estimate_shift(
         data::WeightedArray{T, N},
-        profiles::Vector{<:Union{Nothing, Profile}},
+        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         models::Vector{<:Union{Nothing, Vector{Float64}}};
         ntasks = 4 * Threads.nthreads(),
         restrict = 0,
     ) where {T <: Real, N}
 
 
-    loss(shift) = tmapreduce(+, findall(!isnothing, profiles); outputtype = Float64, ntasks = ntasks) do idx
+    loss(shift) = tmapreduce(+, findall(is_profile, profiles); outputtype = Float64, ntasks = ntasks) do idx
         tmprofile = deepcopy(profiles[idx])
         tmprofile.cx[1] += shift
         (; value, precision) = extract_spectrum(data, tmprofile; restrict = restrict, nonnegative = true)
@@ -221,7 +221,7 @@ function estimate_shift(
 end
 
 function make_models(
-        profiles::Vector{<:Union{Nothing, Profile}},
+        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         transmission::Vector{Float64},
         template::Vector{Float64},
         λ::AbstractVector{Float64};
@@ -232,7 +232,7 @@ function make_models(
     fill!(models, nothing)
     profile_wavelength = get_wavelength(profiles)
 
-    tforeach(findall(!isnothing, profile_wavelength); ntasks = ntasks) do i
+    tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
         MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
         models[i] = (MI * template) .* transmission[i]
 

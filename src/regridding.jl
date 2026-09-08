@@ -24,10 +24,10 @@ end
 using ScatteredInterpolation
 function spatial_regridding(
         spectral_reggridded_spectra::Vector{<:Union{WeightedArray{T, 1}, Nothing}},
-        profiles::Vector{<:Union{Profile{T2, M}, Nothing}},
+        profiles::AbstractVector{<:Union{Profile, CalibrationError}},
         n;
         ntasks = 4 * Threads.nthreads(),
-    ) where {T <: Real, T2 <: Real, M}
+    ) where {T <: Real}
 
     idx = findall(!isnothing, spectral_reggridded_spectra)
     spectral_len = length(spectral_reggridded_spectra[idx[1]])

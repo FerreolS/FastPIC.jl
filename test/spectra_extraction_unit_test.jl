@@ -44,8 +44,8 @@
         @test all(iszero, get_precision(srestricted))
     end
 
-    @testset "extract_spectra handles nothing and scalar transmission" begin
-        profiles = Union{typeof(p1), Nothing}[p1, nothing, p2]
+    @testset "extract_spectra handles calibration errors and scalar transmission" begin
+        profiles = Union{typeof(p1), FastPIC.CalibrationError}[p1, FastPIC.calibration_invalid_data, p2]
         tr = [2.0, 1.0, 4.0]
         spectra = FastPIC.extract_spectra(data, profiles; transmission = tr, nonnegative = false, ntasks = 1)
 

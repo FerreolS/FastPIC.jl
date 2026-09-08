@@ -1,7 +1,7 @@
 function get_lensletmap(profiles)
     lensletmap = zeros(Int, 2048, 2048)
     for (i, p) in enumerate(profiles)
-        if isnothing(p)
+        if !is_profile(p)
             continue
         end
         mask = view(lensletmap, p.bbox) .> 0
@@ -136,7 +136,7 @@ function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshif
     boxes = Vector{BoundingBox{Int}}(undef, size(grid, 2))
     @inbounds   for i in axes(grid, 2)
         box = get_bbox(grid[1, i], grid[2, i]; bbox_params = bboxparams)
-        if ismissing(box)
+        if box isa CalibrationError
             mask[i] = false
             continue
         end
@@ -145,7 +145,12 @@ function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshif
             continue
         end
         if xshift_bbox
-            boxes[i] = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
+            shifted_box = get_bbox(get_meanx(lamp, box), grid[2, i]; bbox_params = bboxparams)
+            if shifted_box isa CalibrationError
+                mask[i] = false
+            else
+                boxes[i] = shifted_box
+            end
         else
             boxes[i] = box
         end
@@ -224,7 +229,7 @@ function build_centers(profiles, valid)
 end
 
 function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 50, 100, 150, 200), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
-    valid = findall(!isnothing, profiles)
+    valid = findall(is_profile, profiles)
     if isnothing(laser_models)
         centers = build_centers(profiles, valid)
     else
@@ -341,7 +346,7 @@ function initialize_bboxes(
     valid = falses(size(centers, 2))
     @inbounds for i in axes(centers, 2)
         bbox = get_bbox(centers[1, i], centers[2, i]; bbox_params = bbox_params)
-        if ismissing(bbox)
+        if bbox isa CalibrationError
             continue
         end
         if get_value(mean(view(lamp, bbox))) < medlamp / lenslets_threshold
