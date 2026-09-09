@@ -4,7 +4,7 @@
 Build the PIC forward operator from calibrated profiles. `Npix`, `λ`, and
 `lenslet_width` are reconstruction configuration and are therefore keywords.
 """
-function build_PIC_operators(profiles; Npix, λ, lenslet_width, T = Float64, pad::Int = 0)
+function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lenslet_width, T = Float64, pad::Int = 0)
     all(is_calibrated, profiles) || throw(ArgumentError("all profiles must be wavelength-calibrated to build a PIC operator"))
 
     paddedinpix = 2 * pad * 2048 / Npix + 2048
