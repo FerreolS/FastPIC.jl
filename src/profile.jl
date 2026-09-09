@@ -36,7 +36,20 @@ struct Profile{T, N, C}
     end
 end
 
+"""
+    is_profile(value)
+
+Return `true` when `value` is a `Profile` and `false` for a `LensletError`.
+This predicate is intended for filtering lenslet-indexed heterogeneous vectors.
+"""
 is_profile(value) = value isa Profile
+
+"""
+    is_calibrated(profile::Profile)
+
+Return `true` when `profile` has wavelength-calibration coefficients and can be
+used by calibrated-only operations such as PIC construction.
+"""
 is_calibrated(profile::Profile) = profile.spectral_coefs isa AbstractVector{Float64}
 
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
