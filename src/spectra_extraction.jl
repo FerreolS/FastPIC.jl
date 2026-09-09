@@ -61,7 +61,7 @@ end
 
 
 """
-    extract_spectra(data::WeightedArray, profiles::Vector; restrict=0, nonnegative=false, ntasks=4*Threads.nthreads())
+    extract_spectra(data::WeightedArray, profiles::Vector; restrict=0, nonnegative=false, ntasks=4*Threads.nthreads(), refinement_loop=0, extra_width=5)
 
 Extract multiple spectra from data using an array of profile models.
 

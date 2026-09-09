@@ -48,7 +48,7 @@ profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
 
 λ = lλ[3:2:(end - 8)]
 Npix = 300
-PIC = build_PIC_operators(profiles, Npix, λ, lenslet_width; pad = 5)
+PIC = build_PIC_operators(profiles; Npix, λ, lenslet_width, pad = 5)
 
 
 objectfiles = deepcopy(filedict)
@@ -105,7 +105,7 @@ cpu(x) = adapt(Array, x)
 gpu(x) = adapt(CuArray, x)
 d = flatten_spectra(lamp_spectra);
 
-PIC = build_PIC_operators(profiles, 301, λ, lenslet_width; pad = 5, T=Float32)
+PIC = build_PIC_operators(profiles; Npix = 301, λ, lenslet_width, pad = 5, T=Float32)
 PIC_gpu = PIC |> gpu
 d_gpu = adapt(CuArray{Float32},d);
 mu = float(mu)
