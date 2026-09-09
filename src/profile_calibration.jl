@@ -159,7 +159,11 @@ function refine_lamp_model(
         ntasks = 4 * Threads.nthreads(),
         kwargs...
     )
-    lamp_spectra = extract_spectra(lamp, profiles; restrict = lamp_extract_restrict, ntasks = ntasks, nonnegative = true)
+    valid = findall(is_profile, profiles)
+    valid_spectra = extract_spectra(lamp, profiles[valid]; restrict = lamp_extract_restrict, ntasks = ntasks, nonnegative = true)
+    lamp_spectra = Vector{Union{eltype(valid_spectra), LensletError}}(undef, length(profiles))
+    fill!(lamp_spectra, lenslet_spectrum_extraction_failed)
+    lamp_spectra[valid] .= valid_spectra
 
     return refine_lamp_model(lamp, profiles, lamp_spectra; lamp_extract_restrict = lamp_extract_restrict, ntasks = ntasks, kwargs...)
 end
@@ -265,8 +269,8 @@ function refine_lamp_model(
                     end
                 catch e
                     @debug "Error on lenslet $i" exception = e
-                    profiles[i] = lenslet_spectrum_extraction_failed
-                    lamp_spectra[i] = lenslet_spectrum_extraction_failed
+                    profiles[i] = refine_lamp_model_failed
+                    lamp_spectra[i] = refine_lamp_model_failed
                 end
             end
             isnothing(progress) || next!(progress)

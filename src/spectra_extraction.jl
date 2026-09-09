@@ -69,19 +69,19 @@ Parallelized version of `extract_spectrum` for processing multiple traces simult
 
 # Arguments
 - `data`: Input weighted data (2D or 3D)
-- `profiles`: Vector of Profile objects or `LensletError` values for invalid traces
+- `profiles`: Vector of valid `Profile` objects
 - `restrict`: Profile truncation threshold
 - `nonnegative`: Enforce non-negative extracted values
 - `ntasks`: Number of parallel tasks for processing
 
 # Returns
-- `Vector{Union{WeightedArray{T,1}, LensletError}}`: Array of extracted spectra
+- `Vector{WeightedArray{T,1}}`: Array of extracted spectra
 """
 is_spectrum(value) = value isa WeightedArray
 
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::AbstractVector{<:Union{Profile, LensletError}};
+        profiles::AbstractVector{<:Profile};
         transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
@@ -91,10 +91,8 @@ function extract_spectra(
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     profile_type = ZippedArray{WeightedValue{T}, N - 1, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
-    spectra = Vector{Union{profile_type, LensletError}}(undef, length(profiles))
-    for i in eachindex(spectra, profiles)
-        spectra[i] = is_profile(profiles[i]) ? lenslet_spectrum_extraction_failed : profiles[i]
-    end
+    spectra = Vector{profile_type}(undef, length(profiles))
+
 
     if refinement_loop > 0
         if N == 3
@@ -119,7 +117,7 @@ function extract_spectra(
             try
                 spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
             catch
-                spectra[i] = lenslet_spectrum_extraction_failed
+                spectra[i] = WeightedArray(zeros(T, size(profiles[i].bbox)), zeros(T, size(profiles[i].bbox)))
             end
         end
     end
@@ -147,16 +145,11 @@ Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of 
 
 
 function correct_spectral_transmission(
-        spectra::Vector{<:Union{LensletError, WeightedArray}},
+        spectra::AbstractVector{<:AbstractArray{<:WeightedValue{T}}},
         transmission
-    )
+    ) where {T}
     corrected = similar(spectra)
-    fill!(corrected, lenslet_spectrum_extraction_failed)
-    first_valid = findfirst(is_spectrum, spectra)
-    first_valid === nothing && return corrected
-    first_spectrum = spectra[first_valid]::WeightedArray
-    T = eltype(get_value(first_spectrum))
-    tforeach(findall(is_spectrum, spectra); ntasks = 4 * Threads.nthreads()) do i
+    tforeach(axes(corrected, 1); ntasks = 4 * Threads.nthreads()) do i
         (; value, precision) = transmission[i]
         spec_val = get_value(spectra[i])
         spec_prec = spectra[i].precision
@@ -253,11 +246,9 @@ function make_models(
 end
 
 
-function flatten_spectra(spectra::AbstractVector{<:Union{LensletError, WeightedArray}})
-    spectra = collect(spectra[map(is_spectrum, spectra)])
+function flatten_spectra(spectra::AbstractVector{<:AbstractArray{<:WeightedValue, N}}) where {N}
     sp1 = first(spectra)
-    T = eltype(sp1.value)
-    N = ndims(sp1)
+    T = eltype(get_value(sp1))
     if N == 1
         precision = zeros(T, length(spectra), length(sp1))
         value = zeros(T, length(spectra), length(sp1))

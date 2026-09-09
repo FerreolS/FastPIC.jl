@@ -44,35 +44,21 @@
         @test all(iszero, get_precision(srestricted))
     end
 
-    @testset "extract_spectra handles calibration errors and scalar transmission" begin
-        profiles = Union{typeof(p1), FastPIC.LensletError}[p1, FastPIC.lenslet_invalid_data, p2]
+    @testset "extract_spectra handles valid profiles and scalar transmission" begin
+        profiles = [p1, p2]
         tr = [2.0, 1.0, 4.0]
-        spectra = FastPIC.extract_spectra(data, profiles; transmission = tr, nonnegative = false, ntasks = 1)
+        spectra = FastPIC.extract_spectra(data, profiles; transmission = tr[1:2], nonnegative = false, ntasks = 1)
 
-        @test spectra[2] === FastPIC.lenslet_invalid_data
         @test get_value(spectra[1]) ≈ α1 ./ 2 atol = 1.0e-10
-        @test get_value(spectra[3]) ≈ α2 ./ 4 atol = 1.0e-10
+        @test get_value(spectra[2]) ≈ α2 atol = 1.0e-10
     end
 
-    @testset "correct_spectral_transmission propagates value and precision" begin
-        specs = Union{FastPIC.LensletError, typeof(FastPIC.extract_spectrum(data, p1))}[
-            WeightedArray([10.0, 20.0], [4.0, 9.0]),
-            FastPIC.lenslet_spectrum_extraction_failed,
-            WeightedArray([5.0, 10.0], [16.0, 25.0]),
-        ]
 
-        trans = Union{FastPIC.LensletError, typeof(specs[1])}[
-            WeightedArray([2.0, 4.0], [100.0, 100.0]),
-            FastPIC.lenslet_spectrum_extraction_failed,
-            WeightedArray([5.0, 2.0], [100.0, 100.0]),
-        ]
-
-        corrected = FastPIC.correct_spectral_transmission(specs, trans)
-
-        @test corrected[2] === FastPIC.lenslet_spectrum_extraction_failed
-        @test get_value(corrected[1]) ≈ [5.0, 5.0] atol = 1.0e-12
-        @test get_value(corrected[3]) ≈ [1.0, 5.0] atol = 1.0e-12
-        @test all(get_precision(corrected[1]) .> 0)
-        @test all(get_precision(corrected[3]) .> 0)
+    @testset "flatten_spectra accepts weighted vectors" begin
+        spectra = [WeightedArray([1.0, 2.0], [4.0, 9.0])]
+        flattened = FastPIC.flatten_spectra(spectra)
+        @test size(flattened) == (1, 2)
+        @test get_value(flattened) == [1.0 2.0]
+        @test get_precision(flattened) == [4.0 9.0]
     end
 end

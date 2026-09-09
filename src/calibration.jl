@@ -43,6 +43,7 @@ successful calibration is represented by a `Profile`, not by an enum value.
     lenslet_profile_fit_failed
     lenslet_missing_wavelength
     lenslet_spectrum_extraction_failed
+    refine_lamp_model_failed
 end
 
 """
