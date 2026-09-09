@@ -239,6 +239,7 @@ Estimate a common spectral template from multiple observed spectra.
 
 Uses Tikhonov regularization to solve for a smooth template spectrum that best
 explains all input spectra when convolved with their respective wavelength solutions.
+It estimates also the mean transmission factor for each lenslet.
 
 # Arguments
 - `λ::AbstractVector`: Common wavelength grid
@@ -249,7 +250,7 @@ explains all input spectra when convolved with their respective wavelength solut
 - `Tuple{Vector{Float64}, Vector{Float64}}`: Template spectrum and transmission factors
 """
 function estimate_template(
-    profiles::AbstractVector{<:Union{Profile, LensletError}},
+        profiles::AbstractVector{<:Union{<:Profile, LensletError}},
         λ,
         spectra;
         regul = 1
@@ -407,7 +408,7 @@ Performs iterative refinement where each iteration:
 - `Tuple{Vector, Vector{Float64}, Vector{Float64}}`: Refined coefficients, template, transmission
 """
 function recalibrate_wavelengths(
-    profiles::AbstractVector{<:Union{Profile, LensletError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         λ,
         order,
         lamp_spectra,
@@ -425,9 +426,9 @@ function recalibrate_wavelengths(
 
 
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
-
+    output_profiles = similar(profiles)
     for _ in 1:loop
-        profiles = @localize template  tmap(profiles, 1:length(profiles); ntasks = ntasks) do profile, i
+        @localize template  tmap!(output_profiles, profiles, 1:length(profiles); ntasks = ntasks) do profile, i
             if !is_profile(profile)
                 return profile
             end
@@ -443,14 +444,13 @@ function recalibrate_wavelengths(
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
                 valid_lenslets[i] = false
-                profile = lenslet_profile_fit_failed
+                profile = lenslet_spectral_refinement_failed
             end
             isnothing(progressbar) || next!(progressbar)
             return profile
         end
-
+        profiles = output_profiles
         template, transmission = estimate_template(profiles, λ, lamp_spectra)
-
     end
     isnothing(progressbar) || finish!(progressbar)
     return profiles, template, transmission
@@ -489,7 +489,7 @@ coefs, template, transmission, λ_grid, valid = spectral_calibration(
 ```
 """
 function spectral_calibration(
-    profiles::AbstractVector{<:Union{Profile, LensletError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         lasers::WeightedArray{T, 2},
         lamp_spectra::Vector{L};
         calib_params::FastPICParams = FastPICParams()

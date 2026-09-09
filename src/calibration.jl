@@ -42,6 +42,7 @@ successful calibration is represented by a `Profile`, not by an enum value.
     lenslet_invalid_data
     lenslet_profile_fit_failed
     lenslet_missing_wavelength
+    lenslet_spectral_refinement_failed
     lenslet_spectrum_extraction_failed
     refine_lamp_model_failed
 end
@@ -233,13 +234,10 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
         profiles = profiles[valid_lenslets]
     end
     profiles, lamp_spectra = calibrate_profile(profiles, lamp, calib_params = calib_params)
+
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     profiles = filter_profiles(profiles)
     transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
     return profiles, template, transmission, lλ, lenslet_width, lenslet_θ
-end
-
-function filter_profiles(x::AbstractVector)
-    return collect(x[map(is_profile, x)])
 end

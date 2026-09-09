@@ -52,6 +52,11 @@ used by calibrated-only operations such as PIC construction.
 """
 is_calibrated(profile::Profile) = profile.spectral_coefs isa AbstractVector{Float64}
 
+function filter_profiles(x::AbstractVector{<:Union{Profile, LensletError}})
+    P = Base.typesplit(eltype(x), LensletError)
+    return P[p for p in x if is_profile(p)]
+end
+
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
 
 # Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) = Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
