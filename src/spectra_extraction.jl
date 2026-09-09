@@ -224,7 +224,7 @@ function estimate_shift(
     return shift[1]
 end
 
-function make_models(
+function build_spectral_models(
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         transmission::Vector{Float64},
         template::Vector{Float64},

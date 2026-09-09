@@ -2,7 +2,7 @@ function build_crosstalk_operator(profiles::Vector{<:Profile{T}}) where {T}
     Np = length(profiles)
     Nl = length(get_wavelength(profiles[1]))
     sizein = (Np, Nl)
-    Ctlk = compute_cross_talk(profiles)
+    Ctlk = build_crosstalk_matrix(profiles)
     Xtlk = LinOpSparse(Ctlk, sizein, sizein)
     return Xtlk
 end
@@ -14,7 +14,7 @@ function get_neighbor_lenslets(lmap, bbox)
     return unique(lmap[axes(lbox)...][[1, end], :])
 end
 
-function compute_cross_talk(profiles::Vector{<:Profile{T}}) where {T}
+function build_crosstalk_matrix(profiles::Vector{<:Profile{T}}) where {T}
     lmap = get_lensletmap(profiles)
     I = Vector{Int}()
     J = Vector{Int}()

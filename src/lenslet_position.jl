@@ -191,7 +191,7 @@ function init_grid_param(kdtree::KDTree, centers; scale = 15.0, θ = 0.0, offset
     return x
 end
 
-function build_grid(halflen)
+function hexagonal_grid(halflen)
     B = @SArray [
         1 1 / 2
         0 √3 / 2
@@ -208,7 +208,7 @@ function build_grid(halflen)
     return grid[:, 1:(n - 1)]
 end
 
-function build_centers(profiles, laser_models, valid)
+function compute_lenslet_centers(profiles, laser_models, valid)
     nb_valid = length(valid)
     centers = zeros(Float64, 2, nb_valid)
     for (n, i) in enumerate(valid)
@@ -218,7 +218,7 @@ function build_centers(profiles, laser_models, valid)
     end
     return centers
 end
-function build_centers(profiles, valid)
+function compute_lenslet_centers(profiles, valid)
     nb_valid = length(valid)
     centers = zeros(Float64, 2, nb_valid)
     for (n, i) in enumerate(valid)
@@ -231,11 +231,11 @@ end
 function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 50, 100, 150, 200), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     valid = findall(is_profile, profiles)
     if isnothing(laser_models)
-        centers = build_centers(profiles, valid)
+        centers = compute_lenslet_centers(profiles, valid)
     else
-        centers = build_centers(profiles, laser_models, valid)
+        centers = compute_lenslet_centers(profiles, laser_models, valid)
     end
-    grid, x = build_lenslet_grid(centers; halflensequence = halflensequence, maxeval = maxeval, verbose = verbose, scale = scale, θ = θ, offset = offset, center = center)
+    grid, x = fit_lenslet_grid(centers; halflensequence = halflensequence, maxeval = maxeval, verbose = verbose, scale = scale, θ = θ, offset = offset, center = center)
     gridtree = KDTree(grid)
     idx, _ = knn(gridtree, centers, 1)
     positions = grid[:, vcat(idx...)]
@@ -246,7 +246,7 @@ function find_lenslet_position!(profiles; laser_models = nothing, halflensequenc
 end
 
 
-function build_lenslet_grid(centers; halflensequence = (1, 5, 15, 25, 50, 100, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
+function fit_lenslet_grid(centers; halflensequence = (1, 5, 15, 25, 50, 100, 150), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
     kdtree = KDTree(centers)
 
     centeridx, _ = knn(kdtree, center, 1)
@@ -256,11 +256,11 @@ function build_lenslet_grid(centers; halflensequence = (1, 5, 15, 25, 50, 100, 1
     x = vcat(offset..., scale..., θ)
 
     for hl in halflensequence
-        grid = build_grid(hl)
+        grid = hexagonal_grid(hl)
         adjust_grid_param!(kdtree, grid, x; maxeval = maxeval, verbose = (verbose > 1))
     end
     (verbose > 0) && @info "Final grid parameters: offset=($(x[1]), $(x[2])), scale=$(x[3]), θ=$(rem2pi(x[4], RoundNearest)))"
-    grid = filter_grid(transform_grid(build_grid(150), x))
+    grid = filter_grid(transform_grid(hexagonal_grid(150), x))
     return grid, x
 end
 
@@ -341,7 +341,7 @@ function initialize_bboxes(
     corr, corrlamp = cross_correlation(λ_template, lamp_template, lasers, lamp, laser_line_width[1], lasers_λs, lamp_cfwhms_init[1])
     medlamp = median(lamp.value)
 
-    centers = filter_grid(transform_grid(build_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))
+    centers = filter_grid(transform_grid(hexagonal_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))
 
     valid = falses(size(centers, 2))
     @inbounds for i in axes(centers, 2)
@@ -359,7 +359,7 @@ function initialize_bboxes(
         centers[2, i] = idx[2]
     end
     centers = centers[:, valid]
-    grid, x = build_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
+    grid, x = fit_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
     poly_coefs = estimate_lenslet_warping(grid, centers; order = lenslets_warping_order)
     warped_grid = correct_lenslet_warping(grid, poly_coefs)
     valid_lenslets, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
