@@ -419,12 +419,13 @@ function recalibrate_wavelengths(
         lasers_model;
         verbose = false,
         ntasks = Threads.nthreads() * 4,
-        regul = 1,
+        template_regul = 0.1,
+        template_zero_boundary_regul = 10,
         loop = 2 # TODO put in calib_params
     )
     valid_lenslets = map(is_profile, profiles)
 
-    template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = regul)
+    template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
 
 
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
@@ -452,7 +453,7 @@ function recalibrate_wavelengths(
             return profile
         end
         profiles = output_profiles
-        template, transmission = estimate_template(profiles, λ, lamp_spectra)
+        template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
     end
     isnothing(progressbar) || finish!(progressbar)
     return profiles, template, transmission
@@ -510,7 +511,8 @@ function spectral_calibration(
         laser_spectra,
         lasers_λs,
         las;
-        regul = spectral_recalibration_regul,
+        template_regul = template_regul,
+        template_zero_boundary_regul = template_zero_boundary_regul,
         loop = spectral_recalibration_loop,
         ntasks = ntasks,
         verbose = spectral_calibration_verbose
