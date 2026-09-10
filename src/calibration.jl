@@ -87,7 +87,8 @@ and include sensible defaults for typical SPHERE/IFS data.
 - `laser_extract_restrict::Float64 = 0`: Minimum amplitude for laser extraction
 - `spectral_recalibration_loop::Int = 2`: Number of wavelength refinement iterations
 - `spectral_superres::Float64 = 2`: Super-resolution factor for spectral modeling
-- `spectral_recalibration_regul::Float64 = 1.0`: Tikhonov regularization parameter
+- `template_regul::Float64 = 0.1`: Tikhonov regularization parameter
+- `template_zero_boundary_regul::Float64 = 10.0`: Tikhonov regularization parameter for the zero boundary condition
 
 ## Performance
 - `ntasks::Int`: Number of parallel tasks (default: 4 × number of threads)
@@ -148,7 +149,8 @@ Assertion checks validate parameter consistency and ranges.
     spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
     spectral_calibration_verbose::Bool = true
-    spectral_recalibration_regul::Float64 = 1.0 # Tikhonov regularization parameter for spectral recalibration
+    template_regul::Float64 = 0.1 # Tikhonov regularization parameter for spectral recalibration
+    template_zero_boundary_regul::Float64 = 10.0 # Tikhonov regularization parameter for the zero boundary condition in spectral recalibration
 
     transmission_threshold::Float64 = 0.5 # threshold to consider a lenslet as good when estimating the transmission, in terms of relative transmission (compared to the median transmission of all lenslets)
     # Position of the lenslets parameters

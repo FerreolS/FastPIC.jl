@@ -253,7 +253,8 @@ function estimate_template(
         profiles::AbstractVector{<:Union{<:Profile, LensletError}},
         λ,
         spectra;
-        regul = 1
+        regul = 0.1,
+        zero_boundary_regul = 10
     )
     nλ = length(λ)
     valid_lenslets = map(is_profile, profiles)
@@ -263,8 +264,9 @@ function estimate_template(
         A = zeros(Float64, nλ, nλ)
     else
         diagA = 2 * regul * ones(Float64, nλ)
-        diagA[1] = regul
-        diagA[end] = regul
+        diagA[1] = regul + zero_boundary_regul^2
+        diagA[end] = regul + zero_boundary_regul^2
+
         A = Array(BandedMatrix((0 => diagA, 1 => -regul * ones(nλ - 1), -1 => -regul * ones(nλ - 1)), (nλ, nλ)))
     end
     b = zeros(Float64, nλ)
