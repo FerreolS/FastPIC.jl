@@ -69,17 +69,27 @@ Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVecto
 #Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(; normalize = true) =
-    get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox, ycenter, cfwhm, cx)
+    get_footprint(normalize ? Val(:normalize) : Val(:raw), type, bbox, ycenter, cfwhm, cx)
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}; normalize = true) where {T2} =
-    get_profile(normalize ? Val(:normalize) : Val(:raw), T2, bbox, ycenter, cfwhm, cx)
+    get_footprint(normalize ? Val(:normalize) : Val(:raw), T2, bbox, ycenter, cfwhm, cx)
 
-((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}; normalize = true) =
-    get_profile(normalize ? Val(:normalize) : Val(:raw), type, bbox2, ycenter, cfwhm, cx)
+function ((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}; normalize = true)
+    ax, ay = axes(bbox)
+    ax2, ay2 = axes(bbox2)
+    p = zeros(type, size(bbox2)...)
+    ay2Iay = ay2 ∩ ay
+    p[axes(ax2, 1), axes(ay2Iay, 1)] = get_footprint(Val(:raw), type, BoundingBox(ax2, ay2Iay), ycenter, cfwhm, cx)
+    if normalize
+        p[axes(ax2, 1), axes(ay2Iay, 1)] ./= sum(get_footprint(Val(:raw), type, BoundingBox(ax, ay2Iay), ycenter, cfwhm, cx); dims = 1)
+    end
+    return p
+
+end
 
 #Profile(profile::Profile, spectral_coefs) = Profile(profile.type, profile.bbox, profile.ycenter, profile.cfwhm, profile.cx, spectral_coefs)
 
 """
-    get_profile(::Type{T}, bbox::BoundingBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
+    get_footprint(::Type{T}, bbox::BoundingBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
 
 Generate a 2D Gaussian-like profile model over the specified bounding box.
 
@@ -99,7 +109,7 @@ For N=2, supports asymmetric profiles with different left/right widths.
 # Returns
 - `Array{T,2}`: 2D profile image 
 """
-function get_profile(
+function get_footprint(
         ::Val{S},
         ::Type{T},
         bbox::BoundingBox{Int64},
@@ -109,7 +119,7 @@ function get_profile(
     ) where {N, T, S}
 
 
-    0 < N < 3 || error("get_profile : N must be 1 or 2")
+    0 < N < 3 || error("get_footprint : N must be 1 or 2")
 
     xorder = length(cx)
     fwhmorder = size(cfwhm, 1)
