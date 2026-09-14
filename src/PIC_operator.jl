@@ -41,9 +41,6 @@ function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lens
 
 end
 
-function build_PIC_operators(calibration::CalibrationOutput; Npix, λ = calibration.wavelengths, T = Float64, pad::Int = 0)
-    return build_PIC_operators(calibration.profiles; Npix, λ, lenslet_width = calibration.lenslet_width, T = T, pad = pad)
-end
 
 function compute_airy_mtf(len, radius; normalize = true, r2c = false, T = Float64)
     if r2c
