@@ -27,7 +27,7 @@ function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lens
     mtf = T.(compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c))
     D = LinOpDiag(mtf)
     sz2 = r2c ? (sz[1] ÷ 2 + 1, sz[2:end]...) : sz
-    C = LinOpMapslice(sz2, D, [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
+    C = LinOpMapslice(sz2, D; dims = [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
     II = LinOpNFFT(T, sz, points; dims = [1, 2])'
 
     # MI = [ FastPIC.build_sparse_interpolation_integration_matrix(get_precision(T), λ, profile) for profile in profiles]
@@ -39,6 +39,10 @@ function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lens
     XPIC = Xtlk * P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
     return XPIC
 
+end
+
+function build_PIC_operators(calibration::CalibrationOutput; Npix, λ = calibration.wavelengths, T = Float64, pad::Int = 0)
+    return build_PIC_operators(calibration.profiles; Npix, λ, lenslet_width = calibration.lenslet_width, T = T, pad = pad)
 end
 
 function compute_airy_mtf(len, radius; normalize = true, r2c = false, T = Float64)
