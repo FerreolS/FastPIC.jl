@@ -54,7 +54,9 @@ is_calibrated(profile::Profile) = profile.spectral_coefs isa AbstractVector{Floa
 
 function filter_profiles(x::AbstractVector{<:Union{Profile, LensletError}})
     P = Base.typesplit(eltype(x), LensletError)
-    return P[p for p in x if is_profile(p)]
+    good_profile = findall(is_profile, x)
+    filtered = P[x[i] for i in good_profile]
+    return good_profile, filtered
 end
 
 #const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
