@@ -224,28 +224,6 @@ function estimate_shift(
     return shift[1]
 end
 
-function build_spectral_models(
-        profiles::AbstractVector{<:Union{Profile, LensletError}},
-        transmission::Vector{Float64},
-        template::Vector{Float64},
-        λ::AbstractVector{Float64};
-        ntasks = 4 * Threads.nthreads()
-    )
-
-    models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
-    fill!(models, nothing)
-    profile_wavelength = get_wavelength(profiles)
-
-    tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-        MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
-        models[i] = (MI * template) .* transmission[i]
-
-    end
-
-    return models
-end
-
-
 function flatten_spectra(spectra::AbstractVector{<:AbstractArray{<:WeightedValue, N}}) where {N}
     sp1 = first(spectra)
     T = eltype(get_value(sp1))

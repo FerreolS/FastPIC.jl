@@ -48,3 +48,70 @@ function build_crosstalk_matrix(profiles::AbstractVector{<:Profile{T}}) where {T
     end
     return sparse(I, J, V, nelements, nelements) .+ sparse(LinearAlgebra.I, nelements, nelements)
 end
+
+
+function build_crosstalk_model(
+        profiles::AbstractVector{<:Profile{T}},
+        template,
+        λ,
+        transmission = nothing;
+        ntasks = 4 * Threads.nthreads()
+    ) where {T}
+
+    detector = BoundingBox(1:2048, 1:2048)
+    Xtalk_model = zeros(T, size(detector))
+
+    models = build_spectral_models(profiles, template, λ, transmission; ntasks = ntasks)
+
+    for (idx, profile) in enumerate(profiles)
+        if !is_profile(profile)
+            continue
+        end
+        bbox = profile.bbox
+        bboxL = TwoDimensional.grow(bbox, 6, 0) ∩ detector
+
+        A = OffsetArray(zeros(T, size(bboxL)), axes(bboxL)...)
+        OffsetArrays.no_offset_view(view(A, bboxL)) .= profile(bboxL) .* reshape(models[idx], 1, :)
+        view(A, bbox) .= zero(T)
+        view(Xtalk_model, bboxL) .+= OffsetArrays.no_offset_view(A)
+    end
+    return Xtalk_model
+end
+
+function diagAtA_estimation(A::LinOp, K::Int = 10)
+    # Estimate the diagonal of A'A using Girard's method
+    spA = LinOps.inputspace(A)
+    diag_estimate = zeros(spA)
+    for _ in 1:K
+        z = rand((-1, 1), spA)
+        diag_estimate .+= (A' * A * z) .* z
+    end
+    return diag_estimate ./ K
+end
+
+
+function build_spectral_models(
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
+        template,
+        λ,
+        transmission = nothing;
+        ntasks = 4 * Threads.nthreads()
+    )
+
+    models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
+    fill!(models, nothing)
+    profile_wavelength = get_wavelength(profiles)
+    if transmission === nothing
+        tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
+            MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
+            models[i] = (MI * template)
+        end
+    else
+        tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
+            MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
+            models[i] = (MI * template) .* transmission[i]
+        end
+    end
+
+    return models
+end
