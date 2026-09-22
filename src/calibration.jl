@@ -230,8 +230,8 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 - Lenslets outside detector boundaries
 """
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = nothing)
-    centers, grid, bboxes, lenslet_width, lenslet_θ = initialize_bboxes(lamp, lasers; calib_params = calib_params)
-    profiles = initialize_profile(bboxes, grid; calib_params = calib_params, centers = centers)
+    centers, warped_grid, bboxes, lenslet_width, lenslet_θ, poly_coefs = initialize_bboxes(lamp, lasers; calib_params = calib_params)
+    profiles = initialize_profile(bboxes, warped_grid; calib_params = calib_params, centers = centers)
     if valid_lenslets !== nothing
         profiles = profiles[valid_lenslets]
     end
@@ -241,5 +241,5 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
     profiles = filter_profiles(profiles)
     transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
-    return profiles, template, transmission, lλ, lenslet_width, lenslet_θ
+    return profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs
 end

@@ -20,25 +20,24 @@
     lamp = WeightedArray(read(specpos[1])[:, :, 1], read(specpos[2])[:, :, 1])
     close(specpos)
 
-    NLENS::Int = 18908
 
     valid_lenslets = nothing
     # Testing on a small subset for development
     valid_lenslets = vcat(194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203, 1500, 1600, 1700, 1800, 1900, 2000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
 
     calib_params = FastPICParams(; nλ = nλ)
-    profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
+    profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs = calibrate(
         lamp,
         lasers,
         calib_params = calib_params,
         valid_lenslets = valid_lenslets,
     )
 
-    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 0)
 
     λ = lλ[10:2:end]
     PIC = build_PIC_operators(profiles; Npix = 301, λ, lenslet_width, pad = 5)
 
+    lamp_spectra = extract_spectra(lamp, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 0)
 
     data = flatten_spectra(lamp_spectra)
     goodpix = data.precision .> 0

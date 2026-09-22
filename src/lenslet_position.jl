@@ -362,8 +362,8 @@ function initialize_bboxes(
     grid, x = fit_lenslet_grid(centers; offset = lenslets_offset, scale = lenslets_scale, θ = lenslets_θ)
     poly_coefs = estimate_lenslet_warping(grid, centers; order = lenslets_warping_order)
     warped_grid = correct_lenslet_warping(grid, poly_coefs)
-    valid_lenslets, bboxes = build_boxes(grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
-    return grid[:, valid_lenslets], warped_grid[:, valid_lenslets], bboxes, x[3], x[4]
+    valid_lenslets, bboxes = build_boxes(warped_grid, lamp; threshold = lenslets_threshold, bboxparams = bbox_params)
+    return grid[:, valid_lenslets], warped_grid[:, valid_lenslets], bboxes, x[3], x[4], poly_coefs
 
 end
 
