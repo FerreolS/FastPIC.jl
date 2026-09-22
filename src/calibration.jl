@@ -239,7 +239,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
 
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
     profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-    profiles = filter_profiles(profiles)
+    good_profile, profiles = filter_profiles(profiles)
     transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
     return profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs
 end
