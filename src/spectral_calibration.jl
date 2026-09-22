@@ -411,7 +411,7 @@ Performs iterative refinement where each iteration:
 """
 function recalibrate_wavelengths(
         profiles::AbstractVector{<:Union{Profile, LensletError}},
-        λ,
+        lλ,
         order,
         lamp_spectra,
         laser_spectra,
@@ -425,7 +425,7 @@ function recalibrate_wavelengths(
     )
     valid_lenslets = map(is_profile, profiles)
 
-    template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
+    template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
 
 
     progressbar = verbose ? Progress(sum(valid_lenslets) * loop; showspeed = true, desc = "Spectral recalibration $loop loops") : nothing
@@ -442,7 +442,7 @@ function recalibrate_wavelengths(
                 coef = copy(spectral_coefs)
             end
             try
-                coef = spectral_refinement(coef, lamp_spectra[i], template, λ, profile.ycenter - profile.bbox.ymin, lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
+                coef = spectral_refinement(coef, lamp_spectra[i], template, lλ, profile.ycenter - profile.bbox.ymin, lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
                 @reset profile.spectral_coefs = coef
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
@@ -453,7 +453,7 @@ function recalibrate_wavelengths(
             return profile
         end
         profiles = output_profiles
-        template, transmission = estimate_template(profiles, λ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
+        template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = template_regul, zero_boundary_regul = template_zero_boundary_regul)
     end
     isnothing(progressbar) || finish!(progressbar)
     return profiles, template, transmission
