@@ -51,29 +51,36 @@ end
 
 
 function build_crosstalk_model(
-        profiles::AbstractVector{<:Profile{T}},
+        profiles::AbstractVector{<:Union{Profile{T}, LensletError}},
         template,
         λ,
         transmission = nothing;
+        crosstalk_width = 6,
         ntasks = 4 * Threads.nthreads()
     ) where {T}
 
     detector = BoundingBox(1:2048, 1:2048)
+
+    models = build_spectra_models(profiles, template, λ, transmission; ntasks = ntasks)
+
     Xtalk_model = zeros(T, size(detector))
+    Xtalk_model_indices = LinearIndices(Xtalk_model)
 
-    models = build_spectral_models(profiles, template, λ, transmission; ntasks = ntasks)
+    Xtalk_model_view = unsafe_wrap(AtomicMemory{T}, pointer(Xtalk_model), length(Xtalk_model); own = false)
 
-    for (idx, profile) in enumerate(profiles)
-        if !is_profile(profile)
-            continue
+    tforeach(profiles, models; ntasks = ntasks) do profile, model
+
+        if is_profile(profile)
+            bbox = profile.bbox
+            bboxL = TwoDimensional.grow(bbox, crosstalk_width, 0) ∩ detector
+
+            A = OffsetArray(zeros(T, size(bboxL)), axes(bboxL)...)
+            OffsetArrays.no_offset_view(view(A, bboxL)) .= profile(bboxL) .* reshape(model, 1, :)
+            view(A, bbox) .= zero(T)
+            @inbounds for (k, idx) in enumerate(view(Xtalk_model_indices, bboxL))
+                Atomix.@atomic   Xtalk_model_view[idx] += A[k]
+            end
         end
-        bbox = profile.bbox
-        bboxL = TwoDimensional.grow(bbox, 6, 0) ∩ detector
-
-        A = OffsetArray(zeros(T, size(bboxL)), axes(bboxL)...)
-        OffsetArrays.no_offset_view(view(A, bboxL)) .= profile(bboxL) .* reshape(models[idx], 1, :)
-        view(A, bbox) .= zero(T)
-        view(Xtalk_model, bboxL) .+= OffsetArrays.no_offset_view(A)
     end
     return Xtalk_model
 end
@@ -90,7 +97,7 @@ function diagAtA_estimation(A::LinOp, K::Int = 10)
 end
 
 
-function build_spectral_models(
+function build_spectra_models(
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         template,
         λ,
