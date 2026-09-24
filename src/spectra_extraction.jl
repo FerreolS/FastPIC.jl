@@ -81,46 +81,27 @@ is_spectrum(value) = value isa WeightedArray
 
 function extract_spectra(
         data::WeightedArray{T, N},
-        profiles::AbstractVector{<:Profile};
+        profiles;
         transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
         nonnegative::Bool = true,
-        ntasks = 4 * Threads.nthreads(),
-        refinement_loop = 0,
-        extra_width = 5
+        ntasks = 4 * Threads.nthreads()
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
-    profile_type = ZippedArray{WeightedValue{T}, N - 1, 2, true, Tuple{Array{T, N - 1}, Array{T, N - 1}}}
-    spectra = Vector{profile_type}(undef, length(profiles))
+    spectra = Vector{Union{WeightedArray{T, 1}, LensletError}}(undef, length(profiles))
 
-
-    if refinement_loop > 0
-        if N == 3
-            nframes = size(data, 3)
-            foreach(findall(is_profile, profiles)) do i
-                ny = size(profiles[i].bbox, 2)
-                spectra[i] = WeightedArray(zeros(T, ny, nframes), zeros(T, ny, nframes))
-            end
-            for t in axes(data, 3)
-                #   tforeach(axes(data, 3); ntasks = ntasks) do t
-                _, spctr, _ = refine_lamp_model(view(data, :, :, t), profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
-                foreach(findall(is_profile, profiles)) do i
-                    spectra[i].value[:, t] .= spctr[i].value
-                    spectra[i].precision[:, t] .= spctr[i].precision
-                end
+    tmap!(spectra, profiles; ntasks = ntasks) do profile
+        if is_profile(profile)
+            try
+                output = extract_spectrum(data, profile; restrict = restrict, nonnegative = nonnegative)
+            catch
+                output = zeros(WeightedValue{T}, size(profile.bbox))
             end
         else
-            _, spectra, _ = refine_lamp_model(data, profiles; keep_loop = false, profile_loop = refinement_loop, verbose = false, extra_width = extra_width, lamp_extract_restrict = restrict, dont_fit_profile = true)
-        end
-    else
-        @localize spectra tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-            try
-                spectra[i] = extract_spectrum(data, profiles[i]; restrict = restrict, nonnegative = nonnegative)
-            catch
-                spectra[i] = WeightedArray(zeros(T, size(profiles[i].bbox)), zeros(T, size(profiles[i].bbox)))
-            end
+            output = profile
         end
     end
+
     if transmission isa FastUniformArray
         return spectra
     end
