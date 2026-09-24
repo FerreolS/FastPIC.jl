@@ -40,7 +40,7 @@ function build_crosstalk_matrix(profiles::AbstractVector{<:Profile{T}}) where {T
             nrange = (sharedy.start - ymin + 1):(sharedy.stop - ymin + 1)
             sharedbbx = BoundingBox(axes(bbox, 1), sharedy)
             nbr_range = (sharedy.start - neighbor_profile.bbox.ymin + 1):(sharedy.stop - neighbor_profile.bbox.ymin + 1)
-            values = sum(neighbor_profile(sharedbbx; normalize = true) .* profile(sharedbbx); dims = 1)[:]
+            values = sum(neighbor_profile(sharedbbx) .* profile(sharedbbx); dims = 1)[:]
             append!(I, (nrange .- 1) .* nprofiles .+ idx)
             append!(J, (nbr_range .- 1) .* nprofiles .+ neighbor)
             append!(V, values)

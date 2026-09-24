@@ -59,10 +59,6 @@ function filter_profiles(x::AbstractVector{<:Union{Profile, LensletError}})
     return good_profile, filtered
 end
 
-#const Profile{T, N} = Profile{T, N, C} where {C <: Union{Nothing, Vector{Float64}}}
-
-# Profile(bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) = Profile(bbox, mean(axes(bbox, 2)), cfwhm, cx)
-
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
     Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing)
 Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector, position::NTuple{2}) =
@@ -70,25 +66,14 @@ Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVecto
 
 #Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
-((; type, bbox, ycenter, cfwhm, cx)::Profile)(; normalize = true) =
-    get_footprint(normalize ? Val(:normalize) : Val(:raw), type, bbox, ycenter, cfwhm, cx)
-((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}; normalize = true) where {T2} =
-    get_footprint(normalize ? Val(:normalize) : Val(:raw), T2, bbox, ycenter, cfwhm, cx)
+((; type, bbox, ycenter, cfwhm, cx)::Profile)() =
+    get_footprint(type, bbox, ycenter, cfwhm, cx)
 
-function ((; type, bbox, ycenter, cfwhm, cx)::Profile)(bbox2::BoundingBox{Int}; normalize = true)
-    ax, ay = axes(bbox)
-    ax2, ay2 = axes(bbox2)
-    p = zeros(type, size(bbox2)...)
-    ay2Iay = ay2 ∩ ay
-    p[axes(ax2, 1), axes(ay2Iay, 1)] = get_footprint(Val(:raw), type, BoundingBox(ax2, ay2Iay), ycenter, cfwhm, cx)
-    if normalize
-        p[axes(ax2, 1), axes(ay2Iay, 1)] ./= sum(get_footprint(Val(:raw), type, BoundingBox(ax, ay2Iay), ycenter, cfwhm, cx); dims = 1)
-    end
-    return p
+((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}) where {T2} =
+    get_footprint(T2, bbox, ycenter, cfwhm, cx)
 
-end
-
-#Profile(profile::Profile, spectral_coefs) = Profile(profile.type, profile.bbox, profile.ycenter, profile.cfwhm, profile.cx, spectral_coefs)
+((; type, ycenter, cfwhm, cx)::Profile)(bbox::BoundingBox{Int}) =
+    get_footprint(type, bbox, ycenter, cfwhm, cx)
 
 """
     get_footprint(::Type{T}, bbox::BoundingBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
@@ -112,68 +97,50 @@ For N=2, supports asymmetric profiles with different left/right widths.
 - `Array{T,2}`: 2D profile image 
 """
 function get_footprint(
-        ::Val{S},
         ::Type{T},
         bbox::BoundingBox{Int64},
         ycenter::Float64,
         cfwhm::Array{Float64, N},
         cx::Vector{Float64}
-    ) where {N, T, S}
+    ) where {T, N}
 
+    N == 1 || error("get_footprint : N ≠ 1 not yet implemented for get_footprint")
 
-    0 < N < 3 || error("get_footprint : N must be 1 or 2")
 
     xorder = length(cx)
     fwhmorder = size(cfwhm, 1)
 
     order = max(xorder, fwhmorder)
 
-    ax, ay = axes(bbox)
+    _, ay = axes(bbox)
     ypo = ((ay .- ycenter)) .^ reshape(0:order, 1, order + 1)
 
     xcenter = view(ypo, :, 1:xorder) * cx
 
     width = view(ypo, :, 1:fwhmorder) * cfwhm
 
-    fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
 
+    img = zeros(T, size(bbox)...)
 
-    if false
-        fw = @. T(-1 / (2 * (width^2) * fwhm2sigma2))
-        xc = T.(ax .- xcenter')
-        if N == 1
-            dist = (xc .^ 2) .* reshape(fw, 1, :)
-        else # N == 2
-            dist = min.(xc, 0) .^ 2 .* reshape(fw[:, 1], 1, :) .+ max.(xc, 0) .^ 2 .* reshape(fw[:, 2], 1, :)
+    ax = (bbox.xmin - 0.5):(bbox.xmax + 0.5)
 
+    @inbounds @simd for j in axes(img, 2)
+        integ = Vector{T}(undef, length(ax))
+        for i in axes(ax, 1) #5
+            integ[i] = T(1 / 2 * erf((ax[i] - xcenter[j]) * 2 * sqrt(log(2)) / width[j]))
         end
-
-
-        img = exp.(dist)
-    else
-        img = zeros(T, size(bbox)...)
-
-        @inbounds @simd for j in axes(img, 2) #40
-            for i in axes(img, 1) #5
-                d = (ax[i] - xcenter[j])
-                if N == 1
-                    img[i, j] = T(gaussian(width[j], d))
-                else # N == 2
-                    img[i, j] = T(gaussian(width[j, ifelse(d < 0, 1, 2)], d))
-                end
-            end
-        end
+        img[:, j] .= diff(integ)
     end
-    if S == :normalize
-        return img ./ sum(img; dims = 1)
-    end
+
     return img
 end
 
-@inline function gaussian(width, d::T) where {T}
-    fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
-    return exp(-d^2 / T(2 * width^2 * fwhm2sigma2))
-end
+get_footprint((; type, bbox, ycenter, cfwhm, cx)::Profile) =
+    get_footprint(type, bbox, ycenter, cfwhm, cx)
+
+get_footprint((; type, ycenter, cfwhm, cx)::Profile, bbox) =
+    get_footprint(type, bbox, ycenter, cfwhm, cx)
+
 
 """
     get_bbox(center_x::Float64, center_y::Float64; bbox_params::BboxParams = BboxParams())

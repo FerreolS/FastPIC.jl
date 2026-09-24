@@ -366,7 +366,7 @@ function fit_profile(
     vec, re = Optimisers.destructure(profile)
 
     d = relative ? data : view(data, profile.bbox)
-    f(x) = loglikelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
+    f(x) = loglikelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)())
     Newuoa.optimize!(f, vec, 1.0e-2, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
 
     any(isnan.(vec)) &&  throw("NaN found in profile for lenslet $i")
@@ -420,7 +420,7 @@ function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Fl
             continue
         end
         lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
-        prfl = profile(lbox; normalize = true) .* reshape(modeled_spectra[i, :], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
         bbox_indices = view(model_indices, CartesianIndices(lbox))
         @inbounds for (k, idx) in enumerate(bbox_indices)
             Atomix.@atomic model_view[idx] += prfl[k]
