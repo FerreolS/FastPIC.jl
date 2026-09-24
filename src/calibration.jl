@@ -74,7 +74,7 @@ and include sensible defaults for typical SPHERE/IFS data.
 ## Profile Calibration
 - `profile_precision::Type = Float32`: Numeric precision for profile fitting
 - `profile_order::Int = 3`: Polynomial order for profile parameterization
-- `extra_width::Int = 2`: Extra pixels around bbox for neighboring lenslet modeling
+- `extra_width::Int = 2`: Extra pixels around bbox for crosstalk lenslet modeling
 - `profile_loop::Int = 2`: Number of profile refinement iterations
 - `lamp_cfwhms_init::VecOrMat{R}`: Initial FWHM coefficients for profiles
 - `fit_profile_maxeval::Int = 10_000`: Maximum evaluations for profile optimization
@@ -147,7 +147,6 @@ Assertion checks validate parameter consistency and ranges.
     laser_line_pix::Vector{Float64} = nλ == 3 ? [8.0, 21.0, 36.0] : [5.0, 13, 22, 33] # initial guess for the laser line positions in pixels (relative to the center of the lenslet), used for fitting the laser spectra
 
     laser_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
-    spectral_recalibration_loop::Int = 2 # number of outer loop of spectral recalibration
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
     spectral_calibration_verbose::Bool = true
     template_regul::Float64 = 0.1 # Tikhonov regularization parameter for spectral recalibration
@@ -236,11 +235,24 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
     if valid_lenslets !== nothing
         profiles = profiles[valid_lenslets]
     end
-    profiles, lamp_spectra = calibrate_profile(profiles, lamp, calib_params = calib_params)
-
+    calibrate_profile!(profiles, lamp, calib_params = calib_params)
+    lamp_spectra = extract_spectra(lamp, profiles)
     filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
-    profiles, template, transmission, lλ, _ = spectral_calibration(profiles, lasers, lamp_spectra, calib_params = calib_params)
-    good_profile, profiles = filter_profiles(profiles)
-    transmission = estimate_transmission(profiles, lamp, lλ, template; transmission_threshold = calib_params.transmission_threshold)
-    return profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs
+
+    laser_spectra, lasers_models, λs = laser_calibration!(profiles, lasers; calib_params = calib_params)
+    lλ = build_λrange(λs; superres = calib_params.spectral_superres)
+    template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
+
+
+    for _ in 1:calib_params.profile_loop
+        Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+        corrected_lamp = lamp .- Xtalk_model
+        calibrate_profile!(profiles, corrected_lamp, calib_params = calib_params)
+        lamp_spectra = extract_spectra(corrected_lamp, profiles)
+        spectral_calibration!(profiles, lasers_models, lamp_spectra, laser_spectra, template, lλ; calib_params = calib_params)
+        template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
+    end
+
+    good_profile, filtered = filter_profiles(profiles)
+    return filtered, template, transmission[good_profile], lλ, lenslet_width, lenslet_θ, poly_coefs
 end
