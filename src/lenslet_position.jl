@@ -380,3 +380,8 @@ function build_lenslet_map(profiles::AbstractVector{<:Profile}; Npix = 300, lens
     end
     return lensletmap
 end
+
+@inline function gaussian(width, d::T) where {T}
+    fwhm2sigma2 = (1 / (2 * sqrt(2 * log(2))))^2
+    return exp(-d^2 / T(2 * width^2 * fwhm2sigma2))
+end
