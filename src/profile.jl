@@ -19,7 +19,6 @@ cx = [25.0, 0.05]   # Center position coefficients
 profile = Profile(Float64, bbox, 125.0, cfwhm, cx)
 ```
 """
-
 struct Profile{T, N, C}
     type::Type{T}
     bbox::BoundingBox{Int64}
@@ -36,6 +35,7 @@ struct Profile{T, N, C}
     end
 end
 
+Optimisers.trainable(x::Profile) = (; cfwhm = x.cfwhm, cx = x.cx)
 """
     is_profile(value)
 
@@ -223,7 +223,6 @@ Computes: `λ = Σ coefs[i] * ((pixel - ref)/ref)^(i-1)`
 # Returns
 Wavelength values corresponding to input pixels
 """
-
 function get_wavelength(
         coefs::Vector{<:Union{Nothing, Vector{Float64}}},
         reference_pixel,

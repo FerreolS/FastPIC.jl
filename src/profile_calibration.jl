@@ -24,7 +24,6 @@ This function performs a complete profile calibration workflow:
 profiles, lamp_spectra = calibrate_profile(lamp_data; calib_params=my_params)
 ```
 """
-
 function calibrate_profile(
         profiles,
         lamp::WeightedArray{T, 2};
@@ -94,6 +93,43 @@ function calibrate_profile(
         ntasks = ntasks
     )
     return profiles, lamp_spectra
+end
+
+function calibrate_profile!(
+        profiles,
+        lamp::WeightedArray{T, 2};
+        calib_params::FastPICParams = FastPICParams()
+    ) where {T}
+
+
+    @unpack_FastPICParams calib_params
+    @unpack_BboxParams bbox_params
+
+    NLENS = length(profiles)
+
+
+    progressbar = profile_calibration_verbose ? Progress(NLENS; desc = "Profiles estimation", showspeed = true) : nothing
+
+    # @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
+    OhMyThreads.tmap!(profiles, profiles; ntasks = ntasks) do profile
+        is_profile(profile) || return profile
+        if sum(view(lamp, profile.bbox).precision) == 0
+            isnothing(progressbar) || next!(progressbar)
+            return lenslet_invalid_data
+        end
+
+        try
+            return fit_profile(lamp, profile; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
+        catch e
+            @debug "Error on lenslet" exception = (e, catch_backtrace())
+            isnothing(progressbar) || next!(progressbar)
+            return lenslet_profile_fit_failed
+        end
+        isnothing(progressbar) || next!(progressbar)
+    end
+    isnothing(progressbar) || finish!(progressbar)
+
+    return profiles
 end
 
 function initialize_profile(
@@ -332,6 +368,9 @@ function fit_profile(
     d = relative ? data : view(data, profile.bbox)
     f(x) = loglikelihood(ScaledL2Loss(dims = 1, nonnegative = true), d, re(x)(; normalize = false))
     Newuoa.optimize!(f, vec, 1.0e-2, 1.0e-9; scale = scale, check = false, maxeval = maxeval, verbose = verbose)
+
+    any(isnan.(vec)) &&  throw("NaN found in profile for lenslet $i")
+
     return re(vec)
 end
 

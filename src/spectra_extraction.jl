@@ -200,7 +200,6 @@ This function computes an optimal shift in the X direction (perpendicular to the
     d. These scores are summed across all profiles.
 3.  The `OptimPackNextGen.BraDi.maximize` algorithm is used to find the `shift` that maximizes the objective function, using `[-0.5, 0.0, 0.5]` as initial bracket points.
 """
-
 function estimate_shift(
         data::WeightedArray{T, N},
         profiles::AbstractVector{<:Union{Profile, LensletError}},
