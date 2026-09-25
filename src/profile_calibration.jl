@@ -46,7 +46,7 @@ function calibrate_profile(
 
     valid_lenslets = valid_lenslets .& map(is_profile, profiles)
     progress = nothing
-    profile_calibration_verbose && (progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true))
+    calibration_verbose && (progress = Progress(sum(valid_lenslets); desc = "Profiles estimation", showspeed = true))
 
     @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
         if !is_profile(profiles[i])
@@ -88,7 +88,7 @@ function calibrate_profile(
         extra_width = extra_width,
         profile_loop = profile_loop,
         fit_profile_maxeval = fit_profile_maxeval,
-        verbose = profile_calibration_verbose,
+        verbose = calibration_verbose,
         fit_profile_verbose = fit_profile_verbose,
         ntasks = ntasks
     )
@@ -108,24 +108,28 @@ function calibrate_profile!(
     NLENS = length(profiles)
 
 
-    progressbar = profile_calibration_verbose ? Progress(NLENS; desc = "Profiles estimation", showspeed = true) : nothing
+    progressbar = calibration_verbose ? Progress(NLENS; desc = "Profiles estimation", showspeed = true) : nothing
 
     # @localize progress @localize profiles @localize lamp_spectra OhMyThreads.tforeach(eachindex(profiles, lamp_spectra); ntasks = ntasks) do i
     OhMyThreads.tmap!(profiles, profiles; ntasks = ntasks) do profile
-        is_profile(profile) || return profile
+        if !is_profile(profile)
+            isnothing(progressbar) || next!(progressbar)
+            return profile
+        end
         if sum(view(lamp, profile.bbox).precision) == 0
             isnothing(progressbar) || next!(progressbar)
             return lenslet_invalid_data
         end
 
         try
-            return fit_profile(lamp, profile; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
+            result = fit_profile(lamp, profile; maxeval = fit_profile_maxeval, verbose = fit_profile_verbose)
+            isnothing(progressbar) || next!(progressbar)
+            return result
         catch e
             @debug "Error on lenslet" exception = (e, catch_backtrace())
             isnothing(progressbar) || next!(progressbar)
             return lenslet_profile_fit_failed
         end
-        isnothing(progressbar) || next!(progressbar)
     end
     isnothing(progressbar) || finish!(progressbar)
 

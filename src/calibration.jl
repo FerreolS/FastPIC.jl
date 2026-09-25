@@ -110,6 +110,7 @@ Assertion checks validate parameter consistency and ranges.
     @assert (nλ == 3 || nλ == 4)
 
     bbox_params::BboxParams = BboxParams()
+    calibration_verbose::Bool = true
 
     # Position of the lenslets
     template_path::String = dirname(pathof(FastPIC))
@@ -121,6 +122,12 @@ Assertion checks validate parameter consistency and ranges.
     lenslets_θ::Float64 = 0.85
     lenslets_threshold::Float64 = 5.0
     lenslets_warping_order::Int = 3
+    position_maxeval::Int = 1000
+    position_scale::Float64 = 15.0
+    position_θ::Float64 = 0.0
+    position_offset::Union{Nothing, Vector{Float64}} = nothing
+    position_center::Vector{Float64} = [1024.0, 1024.0]
+
 
     # Profile Calibration parameters
     profile_precision::Type = Float32
@@ -132,7 +139,6 @@ Assertion checks validate parameter consistency and ranges.
     #@assert size(lamp_cfwhms_init, 2) ≤ 2
     fit_profile_maxeval::Int = 10_000
     fit_profile_verbose::Bool = false
-    profile_calibration_verbose::Bool = true
     lamp_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     outliers_threshold::Float64 = 3.0 # threshold (in sigma) to consider a lenslet spectrum as an outlier when filtering the lamp spectra
 
@@ -148,18 +154,10 @@ Assertion checks validate parameter consistency and ranges.
 
     laser_extract_restrict::Float64 = 0.0 # minimum relative amplitude of the profile to consider when extracting the spectrum
     spectral_superres::Float64 = 2 # super-resolution factor when fitting the spectral model
-    spectral_calibration_verbose::Bool = true
     template_regul::Float64 = 0.1 # Tikhonov regularization parameter for spectral recalibration
     template_zero_boundary_regul::Float64 = 10.0 # Tikhonov regularization parameter for the zero boundary condition in spectral recalibration
 
     transmission_threshold::Float64 = 0.5 # threshold to consider a lenslet as good when estimating the transmission, in terms of relative transmission (compared to the median transmission of all lenslets)
-    # Position of the lenslets parameters
-    position_verbose::Int = 1
-    position_maxeval::Int = 1000
-    position_scale::Float64 = 15.0
-    position_θ::Float64 = 0.0
-    position_offset::Union{Nothing, Vector{Float64}} = nothing
-    position_center::Vector{Float64} = [1024.0, 1024.0]
 
 
     ntasks::Int = 4 * Threads.nthreads()
@@ -230,29 +228,62 @@ The function automatically updates the `valid_lenslets` mask, setting entries to
 - Lenslets outside detector boundaries
 """
 function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), valid_lenslets = nothing)
-    centers, warped_grid, bboxes, lenslet_width, lenslet_θ, poly_coefs = initialize_bboxes(lamp, lasers; calib_params = calib_params)
-    profiles = initialize_profile(bboxes, warped_grid; calib_params = calib_params, centers = centers)
-    if valid_lenslets !== nothing
-        profiles = profiles[valid_lenslets]
+    verbose = calib_params.calibration_verbose
+    total_time = @elapsed begin
+
+        verbose && print("initializing lenslet profiles... ")
+        t = @elapsed begin
+            centers, warped_grid, bboxes, lenslet_width, lenslet_θ, poly_coefs = initialize_bboxes(lamp, lasers; calib_params = calib_params)
+            profiles = initialize_profile(bboxes, warped_grid; calib_params = calib_params, centers = centers)
+            if valid_lenslets !== nothing
+                profiles = profiles[valid_lenslets]
+            end
+        end
+        verbose && println(" : $t s")
+
+        calibrate_profile!(profiles, lamp, calib_params = calib_params)
+
+        verbose && print("extracting lamp spectra... ")
+        t = @elapsed begin
+            lamp_spectra = extract_spectra(lamp, profiles)
+            filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
+        end
+        verbose && println(" : $t s")
+
+        laser_spectra, lasers_models, λs = laser_calibration!(profiles, lasers; calib_params = calib_params)
+
+        lλ = build_λrange(λs; superres = calib_params.spectral_superres)
+
+        verbose && print("estimating template and transmission... ")
+        t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
+        verbose && println(" : $t s")
+
+        for loop_idx in 1:calib_params.profile_loop
+            verbose && println("loop $loop_idx of $(calib_params.profile_loop) ")
+
+            verbose && print("build_crosstalk_model... ")
+            t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+            verbose && println(" : $t s")
+
+            corrected_lamp = lamp .- Xtalk_model
+
+            calibrate_profile!(profiles, corrected_lamp, calib_params = calib_params)
+
+            verbose && print("re-extracting lamp spectra... ")
+            t = @elapsed lamp_spectra = extract_spectra(corrected_lamp, profiles)
+            verbose && println(" : $t s")
+
+            spectral_calibration!(profiles, lasers_models, lamp_spectra, laser_spectra, template, lλ; calib_params = calib_params)
+
+            verbose && print("re-estimating template and transmission... ")
+            t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
+            verbose && println(" : $t s")
+        end
+
+        good_profile, filtered = filter_profiles(profiles)
+
     end
-    calibrate_profile!(profiles, lamp, calib_params = calib_params)
-    lamp_spectra = extract_spectra(lamp, profiles)
-    filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
+    verbose && @info "total calibration time: $total_time s"
 
-    laser_spectra, lasers_models, λs = laser_calibration!(profiles, lasers; calib_params = calib_params)
-    lλ = build_λrange(λs; superres = calib_params.spectral_superres)
-    template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
-
-
-    for _ in 1:calib_params.profile_loop
-        Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
-        corrected_lamp = lamp .- Xtalk_model
-        calibrate_profile!(profiles, corrected_lamp, calib_params = calib_params)
-        lamp_spectra = extract_spectra(corrected_lamp, profiles)
-        spectral_calibration!(profiles, lasers_models, lamp_spectra, laser_spectra, template, lλ; calib_params = calib_params)
-        template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
-    end
-
-    good_profile, filtered = filter_profiles(profiles)
     return filtered, template, transmission[good_profile], lλ, lenslet_width, lenslet_θ, poly_coefs
 end
