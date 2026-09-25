@@ -286,7 +286,10 @@ function estimate_template(
         transmission[idx] = sum((mp = m .* precision) .* value) / sum(m .* mp)
     end
 
-    transmission .*= 1 ./ median(transmission[findall(valid_lenslets)])
+    medtrans = median(transmission[findall(valid_lenslets)])
+
+    transmission .*= 1 ./ medtrans
+    template .*= medtrans
 
     return template, transmission
 end
@@ -515,7 +518,7 @@ function spectral_calibration(
         template_zero_boundary_regul = template_zero_boundary_regul,
         loop = spectral_recalibration_loop,
         ntasks = ntasks,
-        verbose = spectral_calibration_verbose
+        verbose = calibration_verbose
     )
     return profiles, template, transmission, lλ, las
 end
@@ -547,7 +550,7 @@ function spectral_calibration!(
         calib_params::FastPICParams = FastPICParams()
     )
     @unpack_FastPICParams calib_params
-    progressbar = spectral_calibration_verbose ? Progress(length(profiles); showspeed = true, desc = "Spectral calibration") : nothing
+    progressbar = calibration_verbose ? Progress(length(profiles); showspeed = true, desc = "Spectral calibration") : nothing
     tmap!(profiles, profiles, lamp_spectra, laser_spectra, lasers_models, 1:length(profiles); ntasks = ntasks) do profile, lamp_spectrum, laser_spectrum, lasers_model, i
         if !is_profile(profile)
             return profile
@@ -626,7 +629,7 @@ function laser_calibration!(
     fill!(las, lenslet_laser_fit_failed)
 
     valid_lenslets = map(is_profile, profiles)
-    progressbar = spectral_calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
+    progressbar = calibration_verbose ? Progress(sum(valid_lenslets); showspeed = true, desc = "Spectral calibration") : nothing
 
     tforeach(findall(valid_lenslets); ntasks = ntasks) do i
         profile = profiles[i]
