@@ -88,8 +88,11 @@ function extract_spectra(
         ntasks = 4 * Threads.nthreads()
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
-    spectra = Vector{Union{WeightedArray{T, 1}, LensletError}}(undef, length(profiles))
-
+    if profiles isa AbstractVector{<:Profile}
+        spectra = Vector{WeightedVector{T}}(undef, length(profiles))
+    else
+        spectra = Vector{Union{WeightedArray{T, 1}, LensletError}}(undef, length(profiles))
+    end
     tmap!(spectra, profiles; ntasks = ntasks) do profile
         if is_profile(profile)
             try
@@ -203,6 +206,8 @@ function estimate_shift(
     shift = OptimPackNextGen.BraDi.maximize(loss, [-0.5, 0.0, 0.5])
     return shift[1]
 end
+
+flatten_spectra(spectra::AbstractVector{<:Union{<:AbstractArray{<:WeightedValue}, LensletError}}) = error("flatten_spectra:  Profiles must be cleaned up from LensletError before extracting spectra for  flattening")
 
 function flatten_spectra(spectra::AbstractVector{<:AbstractArray{<:WeightedValue, N}}) where {N}
     sp1 = first(spectra)
