@@ -109,7 +109,7 @@ function extract_spectra(
         return spectra
     end
 
-    if Base.typesplit(eltype(transmission), Nothing) <: Real
+    if Base.typesplit(eltype(transmission), LensletError) <: Real
         @localize spectra  tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
             if is_spectrum(spectra[i])
                 spectra[i] = spectra[i] ./ T(transmission[i])

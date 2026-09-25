@@ -35,6 +35,9 @@ struct Profile{T, N, C}
     end
 end
 
+Base.eltype(::Profile{T}) where {T} = T
+Base.eltype(::Type{<:Profile{T}}) where {T} = T
+
 Optimisers.trainable(x::Profile) = (; cfwhm = x.cfwhm, cx = x.cx)
 """
     is_profile(value)

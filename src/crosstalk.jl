@@ -51,14 +51,16 @@ end
 
 
 function build_crosstalk_model(
-        profiles::AbstractVector{<:Union{Profile{T}, LensletError}},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
         template,
         λ,
         transmission = nothing;
         crosstalk_width = 6,
         ntasks = 4 * Threads.nthreads()
-    ) where {T}
+    )
+    T = eltype(Base.typesplit(eltype(profiles), LensletError))
 
+    T == Union{} && throw(ArgumentError("Profiles contains only LensletError"))
     detector = BoundingBox(1:2048, 1:2048)
 
     models = build_spectra_models(profiles, template, λ, transmission; ntasks = ntasks)

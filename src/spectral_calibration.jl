@@ -540,12 +540,12 @@ Updates the `profiles` vector in-place, setting invalid entries to `LensletError
 function spectral_calibration!(
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         lasers_models::AbstractVector{<:Union{LaserModel, LensletError}},
-        lamp_spectra::Vector{<:Union{WeightedArray{T, 1}, LensletError}},
-        laser_spectra::Vector{<:Union{WeightedArray{T, 1}, LensletError}},
+        lamp_spectra::Vector{<:Union{WeightedVector, LensletError}},
+        laser_spectra::Vector{<:Union{WeightedVector, LensletError}},
         template::Vector{<:Real},
         lλ::AbstractVector{<:Real}, ;
         calib_params::FastPICParams = FastPICParams()
-    ) where {T}
+    )
     @unpack_FastPICParams calib_params
     progressbar = spectral_calibration_verbose ? Progress(length(profiles); showspeed = true, desc = "Spectral calibration") : nothing
     tmap!(profiles, profiles, lamp_spectra, laser_spectra, lasers_models, 1:length(profiles); ntasks = ntasks) do profile, lamp_spectrum, laser_spectrum, lasers_model, i
