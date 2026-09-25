@@ -158,7 +158,7 @@ Assertion checks validate parameter consistency and ranges.
     template_zero_boundary_regul::Float64 = 10.0 # Tikhonov regularization parameter for the zero boundary condition in spectral recalibration
 
     transmission_threshold::Float64 = 0.5 # threshold to consider a lenslet as good when estimating the transmission, in terms of relative transmission (compared to the median transmission of all lenslets)
-
+    pixelwise_transmission::Bool = false # whether to estimate the transmission for each pixel of the spectrum (true) or only one value per lenslet (false)
 
     ntasks::Int = 4 * Threads.nthreads()
 end
@@ -239,7 +239,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
                 profiles = profiles[valid_lenslets]
             end
         end
-        verbose && println(" : $t s")
+        verbose && println("  done in $t s")
 
         calibrate_profile!(profiles, lamp, calib_params = calib_params)
 
@@ -248,7 +248,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
             lamp_spectra = extract_spectra(lamp, profiles)
             filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
         end
-        verbose && println(" : $t s")
+        verbose && println("  done in $t s")
 
         laser_spectra, lasers_models, λs = laser_calibration!(profiles, lasers; calib_params = calib_params)
 
@@ -256,14 +256,14 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
 
         verbose && print("estimating template and transmission... ")
         t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
-        verbose && println(" : $t s")
+        verbose && println("  done in $t s")
 
         for loop_idx in 1:calib_params.profile_loop
             verbose && println("loop $loop_idx of $(calib_params.profile_loop) ")
 
             verbose && print("build_crosstalk_model... ")
             t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
-            verbose && println(" : $t s")
+            verbose && println("  done in $t s")
 
             corrected_lamp = lamp .- Xtalk_model
 
@@ -271,19 +271,31 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
 
             verbose && print("re-extracting lamp spectra... ")
             t = @elapsed lamp_spectra = extract_spectra(corrected_lamp, profiles)
-            verbose && println(" : $t s")
+            verbose && println("  done in $t s")
 
             spectral_calibration!(profiles, lasers_models, lamp_spectra, laser_spectra, template, lλ; calib_params = calib_params)
 
             verbose && print("re-estimating template and transmission... ")
             t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
-            verbose && println(" : $t s")
+            verbose && println("  done in $t s")
         end
 
-        good_profile, filtered = filter_profiles(profiles)
+        _, profiles = filter_profiles(profiles)
+        verbose && print("computing transmission... ")
+        t = @elapsed  begin
+            Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+            corrected_lamp = lamp .- Xtalk_model
+            lamp_spectra = extract_spectra(corrected_lamp, profiles)
+            template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
+            if calib_params.pixelwise_transmission
+                transmission = estimate_transmission(profiles, lamp_spectra, template, lλ; ntasks = calib_params.ntasks)
+            end
+        end
+        verbose && println("  done in $t s")
+
 
     end
     verbose && @info "total calibration time: $total_time s"
 
-    return filtered, template, transmission[good_profile], lλ, lenslet_width, lenslet_θ, poly_coefs
+    return profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs
 end

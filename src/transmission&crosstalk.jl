@@ -124,3 +124,39 @@ function build_spectra_models(
 
     return models
 end
+
+
+function estimate_transmission(
+        profiles::Vector{<:Profile},
+        lamp_spectra::Vector{<:WeightedVector{T}},
+        lamp_template,
+        templateλ;
+        ntasks = 4 * Threads.nthreads()
+    ) where {T}
+    modeled_spectra = build_spectra_models(profiles, lamp_template, templateλ)
+    transmission = tmap(WeightedVector{T}, lamp_spectra, modeled_spectra; ntasks = ntasks) do lamp_spec, model_spec
+        lamp_spec ./ model_spec
+    end
+    return transmission
+end
+
+
+function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Float64)
+    detectorbbox = BoundingBox(1:2048, 1:2048)
+    model = zeros(T, 2048, 2048)
+    model_indices = LinearIndices(model)
+    model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
+    for (i, profile) in enumerate(profiles)
+        if !is_profile(profile)
+            continue
+        end
+        lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
+        prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        bbox_indices = view(model_indices, CartesianIndices(lbox))
+        @inbounds for (k, idx) in enumerate(bbox_indices)
+            Atomix.@atomic model_view[idx] += prfl[k]
+        end
+    end
+
+    return model
+end

@@ -25,7 +25,7 @@
     # Testing on a small subset for development
     valid_lenslets = vcat(194, 273, 416, 512, 591, 646, 742, 789, 1083, 1135, 1203, 1500, 1600, 1700, 1800, 1900, 2000, 4000, 5000, 6000, 7000, 8000, 9000, 10000)
 
-    calib_params = FastPICParams(; nλ = nλ)
+    calib_params = FastPICParams(; nλ = nλ, pixelwise_transmission = true)
     profiles, template, transmission, lλ, lenslet_width, lenslet_θ, poly_coefs = calibrate(
         lamp,
         lasers,
@@ -50,5 +50,5 @@
     valid = findall(is_profile, profiles)
     @test !isempty(valid)
     @test all(isfinite, template)
-    #    @test all(i -> all(isfinite, get_value(transmission[i])), valid)
+    @test all(i -> all(isfinite, get_value(transmission[i])), valid)
 end
