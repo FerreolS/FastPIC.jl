@@ -79,7 +79,7 @@ function compute_lasers_amplitudes(
     amp = try
         A \ b
     catch e
-        @debug "Linear solve failed for laser amplitudes: $e. Using pseudo-inverse"
+        #        @debug "Linear solve failed for laser amplitudes: $e. Using pseudo-inverse"
         pinv(A) * b
     end
     return amp
