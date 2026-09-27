@@ -331,6 +331,35 @@ function cross_correlation(λ, lamp_spectrum, lasers, lamp, laser_line_width, la
 end
 
 
+function cross_correlation(λ, lasers, laser_line_width, lasers_λs)
+    T = Float64
+    F = LinOpDFT(T, (2048, 2048))
+    Δλ = (λ[end] - λ[1]) / length(λ)
+
+    image_template = zeros(T, 2048, 2048)
+
+    A = zeros(T, 2048, 2048)
+    b = zeros(T, 2048, 2048)
+
+    fvalue = F * (lasers.value .* lasers.precision)
+    fprecision = F * lasers.precision
+    for laser_λ in lasers_λs
+        laser_template = gaussian.(laser_line_width, T.(-2:2)) .* (gaussian.(laser_line_width * Δλ, T.(λ .- laser_λ)))'
+        laser_template ./= sum(laser_template)
+
+        laser_template ./= sqrt(sum(laser_template .^ 2))
+        fill!(image_template, zero(T))
+        image_template[1023:1027, 1004:1047] .= laser_template[end:-1:1, end:-1:1]
+        image_template = fftshift(image_template)
+        A .+= (inv(F) * ((F * image_template) .* fvalue))
+        b .+= (inv(F) * ((F * (image_template .^ 2)) .* fprecision))
+    end
+    corr = A ./ b
+    map!(x -> ifelse(isfinite(x), x, 0.0), corr)
+    return corr
+end
+
+
 function initialize_bboxes(
         lamp, lasers;
         calib_params::FastPICParams = FastPICParams()
@@ -338,7 +367,7 @@ function initialize_bboxes(
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
-    corr, corrlamp = cross_correlation(λ_template, lamp_template, lasers, lamp, laser_line_width[1], lasers_λs, lamp_cfwhms_init[1])
+    corr = cross_correlation(λ_template, lasers, laser_line_width[1], lasers_λs)
     medlamp = median(lamp.value)
 
     centers = filter_grid(transform_grid(hexagonal_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))
