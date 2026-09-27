@@ -35,7 +35,7 @@ function extract_spectrum(
         (; value, precision) = data
     else
         if N > 2
-            (; value, precision) = view(data, bbox, :)
+            (; value, precision) = view(data, axes(profile.bbox, 1), axes(profile.bbox, 2), :)
         else
             (; value, precision) = view(data, bbox)
         end
@@ -89,9 +89,9 @@ function extract_spectra(
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
     if profiles isa AbstractVector{<:Profile}
-        spectra = Vector{WeightedVector{T}}(undef, length(profiles))
+        spectra = Vector{WeightedArray{T, N - 1}}(undef, length(profiles))
     else
-        spectra = Vector{Union{WeightedArray{T, 1}, LensletError}}(undef, length(profiles))
+        spectra = Vector{Union{WeightedArray{T, N - 1}, LensletError}}(undef, length(profiles))
     end
     tmap!(spectra, profiles; ntasks = ntasks) do profile
         if is_profile(profile)
