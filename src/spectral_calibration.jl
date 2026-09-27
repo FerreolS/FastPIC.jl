@@ -283,7 +283,9 @@ function estimate_template(
     OhMyThreads.tforeach(findall(valid_lenslets)) do idx
         (; value, precision) = spectra[idx]
         m = (MI[idx] * template)
-        transmission[idx] = sum((mp = m .* precision) .* value) / sum(m .* mp)
+        mp = m .* precision
+        denom = m'mp
+        transmission[idx] = denom == 0 ? 1.0 : (mp'value) / denom
     end
 
     medtrans = median(transmission[findall(valid_lenslets)])
