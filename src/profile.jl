@@ -237,3 +237,35 @@ function get_wavelength(profiles::AbstractVector{<:Union{Profile, LensletError}}
     end
     return collect(wvlngth)
 end
+
+function profile_shiftx!(profiles::AbstractVector{<:Union{Profile, LensletError}}, shift::Real)
+    tmap!(profiles, profiles; ntasks = Threads.nthreads()) do profile
+        if is_profile(profile)
+            profile.cx[1] += shift
+        end
+        return profile
+    end
+    return profiles
+end
+
+function profile_shifty!(profiles::AbstractVector{<:Union{Profile, LensletError}}, shift::Real)
+    tmap!(profiles, profiles; ntasks = Threads.nthreads()) do profile
+        if is_profile(profile)
+            @reset profile.ycenter += shift
+        end
+        return profile
+    end
+    return profiles
+end
+
+function profile_shift!(profiles::AbstractVector{<:Union{Profile, LensletError}}, shift)
+    length(shift) == 2 || throw(ArgumentError("shift must be a 2-element vector or tuple"))
+    tmap!(profiles, profiles; ntasks = Threads.nthreads()) do profile
+        if is_profile(profile)
+            profile.cx[1] += shift[1]
+            @reset profile.ycenter += shift[2]
+        end
+        return profile
+    end
+    return profiles
+end

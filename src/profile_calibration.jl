@@ -377,3 +377,76 @@ function fit_profile(
 
     return re(vec)
 end
+
+function estimate_shift(
+        data::WeightedArray{T, N},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
+        ntasks = 4 * Threads.nthreads(),
+        restrict = 0,
+    ) where {T <: Real, N}
+
+
+    # shiftedprofiles = deepcopy(profiles)
+
+    loss(shift) = tmapreduce(+, profiles; outputtype = Float64, ntasks = ntasks) do profile
+        tmprofile = deepcopy(profile)
+
+        tmprofile.cx[1] += shift
+        (; value, precision) = extract_spectrum(data, tmprofile; restrict = restrict, nonnegative = true)
+        #return sum(precision .* value) / sum(precision .* precision)
+        return sum(value .^ 2 .* precision)
+    end
+
+    shift = OptimPackNextGen.BraDi.maximize(loss, range(-0.5, 0.5; length = 10))
+    # shift = Bobyqa.optimize(loss, [0.0], -1.0, 1.0, 1.0, 1.0e-9; check = false, maxeval = 100, verbose = true)
+    return shift
+end
+
+function estimate_shifty(
+        data::WeightedArray{T, N},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
+        ntasks = 4 * Threads.nthreads(),
+        restrict = 0,
+    ) where {T <: Real, N}
+
+
+    loss(shift) = tmapreduce(+, profiles; outputtype = Float64, ntasks = ntasks) do profile
+        tmprofile = deepcopy(profile)
+
+        @reset tmprofile.ycenter = tmprofile.ycenter + shift
+        (; value, precision) = extract_spectrum(data, tmprofile; restrict = restrict, nonnegative = true)
+        #return sum(precision .* value) / sum(precision .* precision)
+        return sum(value .^ 2 .* precision)
+    end
+
+    shift = OptimPackNextGen.BraDi.maximize(loss, range(-0.5, 0.5; length = 10))
+    # shift = Bobyqa.optimize(loss, [0.0], -1.0, 1.0, 1.0, 1.0e-9; check = false, maxeval = 100, verbose = true)
+    return shift
+end
+
+function estimate_shift2D(
+        data::WeightedArray{T, N},
+        profiles::AbstractVector{<:Union{Profile, LensletError}},
+        ntasks = 4 * Threads.nthreads(),
+        restrict = 0,
+    ) where {T <: Real, N}
+
+
+    # shiftedprofiles = deepcopy(profiles)
+
+    loss(shift) = tmapreduce(+, profiles; outputtype = Float64, ntasks = ntasks) do profile
+        tmprofile = deepcopy(profile)
+        tmprofile.cx[1] += shift[1]
+        @reset tmprofile.ycenter = tmprofile.ycenter + shift[2]
+
+        (; value, precision) = extract_spectrum(data, tmprofile; restrict = restrict, nonnegative = true)
+        #return -sum(precision .* value) #/ sum(precision .* precision)
+        return -sum(value .^ 2 .* precision)
+    end
+
+    #shift = OptimPackNextGen.BraDi.maximize(loss, range(-0.5, 0.5; length = 10))
+    #shift = Bobyqa.optimize(loss, [0.0, 0.0], -2.0, 2.0, 1.0, 1.0e-9; check = false, maxeval = 100, verbose = true)
+    shift = Newuoa.optimize!(loss, [0.0, 0.0], 1.0e-2, 1.0e-9; check = false, maxeval = 100, verbose = true)
+
+    return shift
+end
