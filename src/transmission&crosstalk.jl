@@ -151,7 +151,11 @@ function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Fl
             continue
         end
         lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
-        prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        if modeled_spectra isa AbstractVector
+            prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        else
+            prfl = profile(lbox) .* reshape(modeled_spectra[i, :], 1, :) #.* reshape(transmission[i, :].value, 1, :)
+        end
         bbox_indices = view(model_indices, CartesianIndices(lbox))
         @inbounds for (k, idx) in enumerate(bbox_indices)
             Atomix.@atomic model_view[idx] += prfl[k]
