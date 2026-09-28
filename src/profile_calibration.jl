@@ -378,7 +378,7 @@ function fit_profile(
     return re(vec)
 end
 
-function estimate_shift(
+function estimate_shiftx(
         data::WeightedArray{T, N},
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         ntasks = 4 * Threads.nthreads(),
@@ -424,11 +424,12 @@ function estimate_shifty(
     return shift
 end
 
-function estimate_shift2D(
+function estimate_shift(
         data::WeightedArray{T, N},
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         ntasks = 4 * Threads.nthreads(),
         restrict = 0,
+        verbose = false
     ) where {T <: Real, N}
 
 
@@ -438,15 +439,13 @@ function estimate_shift2D(
         tmprofile = deepcopy(profile)
         tmprofile.cx[1] += shift[1]
         @reset tmprofile.ycenter = tmprofile.ycenter + shift[2]
-
         (; value, precision) = extract_spectrum(data, tmprofile; restrict = restrict, nonnegative = true)
-        #return -sum(precision .* value) #/ sum(precision .* precision)
-        return -sum(value .^ 2 .* precision)
+        return sum(value .^ 2 .* precision)
     end
 
     #shift = OptimPackNextGen.BraDi.maximize(loss, range(-0.5, 0.5; length = 10))
-    #shift = Bobyqa.optimize(loss, [0.0, 0.0], -2.0, 2.0, 1.0, 1.0e-9; check = false, maxeval = 100, verbose = true)
-    shift = Newuoa.optimize!(loss, [0.0, 0.0], 1.0e-2, 1.0e-9; check = false, maxeval = 100, verbose = true)
+    shift = Bobyqa.optimize(loss, [0.0, 0.0], -1.0, 1.0, 1.0, 1.0e-9; maximize = true, check = false, maxeval = 100, verbose = verbose)
+    #shift = Newuoa.optimize!(loss, [0.0, 0.0], 1.0e-2, 1.0e-9; check = false, maxeval = 100, verbose = true)
 
-    return shift
+    return shift[2]
 end
