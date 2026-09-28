@@ -1,6 +1,6 @@
 using AstroFITS, WeightedData, FastPIC, FITSexplore, FITSHeaders, LinOps, OptimPackNextGen, DifferentiationInterface, Zygote, RobustModels
-#folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/2025-10-20"
-folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/roots-18"
+folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/2025-10-20"
+#folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/roots-18"
 filedict = fitsexplore(folder; recursive = false)
 
 specposfiles = deepcopy(filedict)
@@ -38,7 +38,7 @@ lamp = mean(lamp, dims = 3)[:, :, 1]
 
 nλ = wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value == "PRI_YJ" ? 3 : 4
 
-calib_params = FastPICParams(; nλ = nλ)
+calib_params = FastPICParams(; nλ = nλ, pixelwise_transmission = true)
 profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
     lamp,
     lasers,
@@ -47,14 +47,14 @@ profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
 
 
 λ = lλ[3:2:(end - 8)]
-Npix = 300
+Npix = 301
 PIC = build_PIC_operators(profiles; Npix, λ, lenslet_width, pad = 5)
 
 
 objectfiles = deepcopy(filedict)
 filter_keyword!(objectfiles, Dict("ESO DPR TYPE" => ["OBJECT"]))
 
-mu = 1.0e-2
+mu = 1.0e-6
 G = LinOpGrad(LinOps.inputsize(PIC))
 loss = CauchyLoss()
 l = Base.Fix1(RobustModels.rho, loss)
@@ -62,31 +62,37 @@ r(d, x) = sqrt.(WeightedData.get_precision(d)) .* (x .- WeightedData.get_value(d
 
 for (filename, header) in objectfiles
     if haskey(header, "ESO INS2 OPTI2 NAME") && header["ESO INS2 OPTI2 NAME"].value == wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value
-        ffile = openfits(filename)
-        data = WeightedArray(read(ffile[1]), read(ffile[2]))
-        close(ffile)
+        data = openfits(filename) do ffile
+            WeightedArray(read(ffile[1]), read(ffile[2]))
+        end
+        shift = estimate_shift(sum(data, dims = 3), profiles)
+        profiles_ = deepcopy(profiles)
+        profile_shift!(profiles_, shift)
+        PIC = build_PIC_operators(profiles_; Npix, λ, lenslet_width, pad = 6)
+
         nframes = header["NAXIS3"].value(Int)
         XX = zeros(inputsize(PIC)..., nframes)
-        data_spectra = extract_spectra(data, profiles; transmission = transmission, restrict = 0, nonnegative = true, refinement_loop = 1)
+        data_spectra = extract_spectra(data, profiles; transmission = transmission, restrict = 0, nonnegative = true)
         d = flatten_spectra(data_spectra)
         hdr = readfits(FitsHeader, filename)
         hdr_filtered = filter(!is_structural, hdr)
         for i in 1:nframes
-            ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(abs2, G * x)
+            #  ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(abs2, G * x)
+            ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(sum(abs2, G * x, dims = (3, 4))) #sum(abs2, G * x)
             #rr = Base.Fix1(r, d[:, :, i])
             #ff(x) = sum(l.(rr(PIC * x))) + mu * sum(abs2, G * x)
             fg!(x, grad) = DifferentiationInterface.value_and_gradient!(ff, grad, AutoZygote(), x)[1]
             XX[:, :, :, i] = vmlmb(fg!, PIC' * d[:, :, i].value; maxeval = 250, verb = 50, lower = 0.0, xtol = (0.0, 1.0e-9))
         end
         dirname, filename = splitdir(filename)
-        newfilename = joinpath(dirname, "reduced", replace(filename, ".fits" => "_reconstructed_$mu.fits"))
+        newfilename = joinpath(dirname, "reduced_new", replace(filename, ".fits" => "_reconstructed_$mu.fits"))
         hdr_filtered["HPARAM"] = mu
         hdr_filtered["PIXSCAL"] = 12.25 / (lenslet_width / 2048 * 300)
         writefits!(newfilename, hdr_filtered, XX)
     end
 end
 lmap = Int32.(FastPIC.build_lenslet_map(profiles; lenslet_width = 1.5, pad = 5))
-file = FitsFile(joinpath(folder, "reduced", "lensletmap.fits"), "w!")
+file = FitsFile(joinpath(folder, "reduced_new", "lensletmap.fits"), "w!")
 hdu = FitsImageHDU(file, lmap)
 write(hdu, lmap)
 close(file)
