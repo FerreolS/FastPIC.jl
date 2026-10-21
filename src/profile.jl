@@ -214,7 +214,7 @@ get_wavelength(coefs, reference_pixel, pixel) =
     get_wavelength(Val(length(coefs) - 1), Val(length(pixel)), coefs, reference_pixel, pixel)
 
 function get_wavelength(::Val{order}, ::Val{len}, coefs, reference_pixel, pixel) where {order, len}
-    fullA = SMatrix{len, order + 1}(((pixel .- reference_pixel) ./ reference_pixel) .^ reshape(0:order, 1, :))
+    fullA = SMatrix{len, order + 1}(((pixel .- reference_pixel) ./ 19) .^ reshape(0:order, 1, :))
     return fullA * coefs
 end
 
