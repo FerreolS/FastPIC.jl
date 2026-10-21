@@ -48,15 +48,14 @@ profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
 
 λ = lλ[3:2:(end - 8)]
 Npix = 333
-PIC = build_PIC_operators(profiles; Npix, λ, lenslet_width, pad = 6)
 
 
 objectfiles = deepcopy(filedict)
 filter_keyword!(objectfiles, Dict("ESO DPR TYPE" => ["OBJECT"]))
 
 mu = 1.0e-6
-G = LinOpGrad(LinOps.inputsize(PIC))
 loss = CauchyLoss()
+loss = L1L2Loss()
 l = Base.Fix1(RobustModels.rho, loss)
 r(d, x) = sqrt.(WeightedData.get_precision(d)) .* (x .- WeightedData.get_value(d))
 
@@ -70,20 +69,25 @@ for (filename, header) in objectfiles
         profiles_ = deepcopy(profiles)
         profile_shift!(profiles_, shift)
         PIC = build_PIC_operators(profiles_; Npix, λ, lenslet_width, pad = 6)
-
+        G = LinOpGrad(LinOps.inputsize(PIC); offsets = (1, 1, 0))
         nframes = header["NAXIS3"].value(Int)
         XX = zeros(inputsize(PIC)..., nframes)
         data_spectra = extract_spectra(data, profiles_; transmission = transmission, restrict = 0, nonnegative = true)
         d = flatten_spectra(data_spectra)
+        x0 = zeros(LinOps.inputspace(PIC))
+
         hdr = readfits(FitsHeader, filename)
         hdr_filtered = filter(!is_structural, hdr)
         for i in 1:nframes
-            #  ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(abs2, G * x)
-            ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(sum(abs2, G * x, dims = (3, 4))) #sum(abs2, G * x)
+            ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(abs2, G * x)
+            #ff(x) = loglikelihood(d[:, :, i], PIC * x) + mu * sum(sum(abs2, G * x, dims = (3, 4))) #sum(abs2, G * x)
             #rr = Base.Fix1(r, d[:, :, i])
             #ff(x) = sum(l.(rr(PIC * x))) + mu * sum(abs2, G * x)
             fg!(x, grad) = DifferentiationInterface.value_and_gradient!(ff, grad, AutoZygote(), x)[1]
-            XX[:, :, :, i] = vmlmb(fg!, PIC' * d[:, :, i].value; maxeval = 250, verb = 50, lower = 0.0, xtol = (0.0, 1.0e-9))
+            x0 = mean(((PIC * PIC' * d[:, :, i].value) .\ d[:, :, i].value)[d[:, :, i].precision .> 0]) .\ max.(0.0, (PIC' * d[:, :, i].value))
+
+            output = vmlmb(fg!, x0; maxeval = 5000, verb = 50, lower = 0.0, xtol = (0.0, 1.0e-9))
+            XX[:, :, :, i] .= output
         end
         dirname, filename = splitdir(filename)
         newfilename = joinpath(dirname, "reduced_new", replace(filename, ".fits" => "_reconstructed_$mu.fits"))
