@@ -135,6 +135,8 @@ import WeightedData: ScaledL2Loss, get_value, loglikelihood
 
 export FastPICParams,
     LensletError,
+    estimate_shift,
+    profile_shift!,
     is_profile,
     is_calibrated,
     build_PIC_operators,
