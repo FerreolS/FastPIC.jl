@@ -27,12 +27,12 @@ wavelampfiles_hdr["ESO INS2 OPTI2 NAME"].value == specposfiles_hdr["ESO INS2 OPT
 
 
 wave = openfits(wavelampfiles.first)
-lasers = WeightedArray(read(wave[1]), read(wave[2]))
+lasers = WeightedArray(max.(0, read(wave[1])), read(wave[2]))
 close(wave)
 lasers = mean(lasers, dims = 3)[:, :, 1]
 
 specpos = openfits(specposfiles.first)
-lamp = WeightedArray(read(specpos[1]), read(specpos[2]))
+lamp = WeightedArray(max.(0, read(specpos[1])), read(specpos[2]))
 close(specpos)
 lamp = mean(lamp, dims = 3)[:, :, 1]
 
@@ -47,8 +47,8 @@ profiles, template, transmission, lλ, lenslet_width, lenslet_θ = calibrate(
 
 
 λ = lλ[3:2:(end - 8)]
-Npix = 301
-PIC = build_PIC_operators(profiles; Npix, λ, lenslet_width, pad = 5)
+Npix = 333
+PIC = build_PIC_operators(profiles; Npix, λ, lenslet_width, pad = 6)
 
 
 objectfiles = deepcopy(filedict)
@@ -65,6 +65,7 @@ for (filename, header) in objectfiles
         data = openfits(filename) do ffile
             WeightedArray(read(ffile[1]), read(ffile[2]))
         end
+        refine_bad_pixels!(data, lenslet_width, lenslet_θ; radius = 2)
         shift = estimate_shift(sum(data, dims = 3), profiles)
         profiles_ = deepcopy(profiles)
         profile_shift!(profiles_, shift)
@@ -72,7 +73,7 @@ for (filename, header) in objectfiles
 
         nframes = header["NAXIS3"].value(Int)
         XX = zeros(inputsize(PIC)..., nframes)
-        data_spectra = extract_spectra(data, profiles; transmission = transmission, restrict = 0, nonnegative = true)
+        data_spectra = extract_spectra(data, profiles_; transmission = transmission, restrict = 0, nonnegative = true)
         d = flatten_spectra(data_spectra)
         hdr = readfits(FitsHeader, filename)
         hdr_filtered = filter(!is_structural, hdr)
