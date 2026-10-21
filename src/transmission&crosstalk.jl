@@ -109,15 +109,14 @@ function build_spectra_models(
 
     models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
     fill!(models, nothing)
-    profile_wavelength = get_wavelength(profiles)
     if transmission === nothing
         tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-            MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
+            MI = build_sparse_interpolation_integration_matrix(λ, profiles[i])
             models[i] = (MI * template)
         end
     else
         tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
-            MI = build_sparse_interpolation_integration_matrix(λ, get_lower_uppersamples(profile_wavelength[i])...)
+            MI = build_sparse_interpolation_integration_matrix(λ, profiles[i])
             models[i] = (MI * template) .* transmission[i]
         end
     end
