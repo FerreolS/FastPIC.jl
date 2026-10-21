@@ -24,7 +24,7 @@ function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lens
         r2c = true
     end
 
-    mtf = T.(compute_airy_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c))
+    mtf = T.(compute_lenslet_mtf(Npix + 2 * pad, lenslet_radius; normalize = true, r2c = r2c))
     D = LinOpDiag(mtf)
     sz2 = r2c ? (sz[1] ÷ 2 + 1, sz[2:end]...) : sz
     C = LinOpMapslice(sz2, D; dims = [1, 2]) * LinOpDFT(T, sz, dims = [1, 2])
@@ -36,13 +36,14 @@ function build_PIC_operators(profiles::AbstractVector{<:Profile}; Npix, λ, lens
     P = build_LinOpIntegration_operators(profiles, λ; T = T)
 
     Xtlk = build_crosstalk_operator(profiles)
-    XPIC = Xtlk * P * II * C * UniformScaling(get_precision(T)(2 / ((Npix + 2 * pad)^2)))
-    return XPIC
+    XPIC = Xtlk * P * II * C * UniformScaling(get_precision(T)(1 / ((Npix + 2 * pad)^2)))
+    #return P * II * C * UniformScaling(get_precision(T)(1 / ((Npix + 2 * pad)^2)))
+    return XPIC # II * C * UniformScaling(get_precision(T)(1 / ((Npix + 2 * pad)^2)))
 
 end
 
 
-function compute_airy_mtf(len, radius; normalize = true, r2c = false, T = Float64)
+function compute_lenslet_mtf(len, radius; normalize = true, r2c = false, T = Float64)
     if r2c
         x = rfftfreq(len)
     else
@@ -53,7 +54,7 @@ function compute_airy_mtf(len, radius; normalize = true, r2c = false, T = Float6
     mtf = 2 * besselj1.(2π * radius * r) ./ (2π * radius * r)
     mtf[1, 1] = 1.0
     if !normalize
-        mtf .*= 2π * radius^2
+        mtf .*= π * radius^2
     end
     return T.(mtf)
 end
