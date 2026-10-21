@@ -241,6 +241,10 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
         end
         verbose && println("  done in $t s")
 
+        verbose && print("refining lamp bad pixels... ")
+        t = @elapsed refine_bad_pixels!(lamp, lenslet_width, lenslet_θ; radius = 2, depth = -1)
+        verbose && println("  done in $t s")
+
         calibrate_profile!(profiles, lamp, calib_params = calib_params)
 
         verbose && print("extracting lamp spectra... ")

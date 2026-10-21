@@ -41,6 +41,7 @@ ZippedArrays = "8051824b-fc5e-4603-89c4-0e6ea551cb88"
 
 [sources]
 LinOps = {rev = "master", url = "https://github.com/FerreolS/LinOps.jl"}
+OptimPackNextGen = {rev = "master", url = "https://github.com/emmt/OptimPackNextGen.jl"}
 
 [compat]
 AbstractFFTs = "1.5.0"
@@ -60,7 +61,7 @@ NearestNeighbors = "0.4.27"
 NonuniformFFTs = "0.9.4"
 OffsetArrays = "1.17.0"
 OhMyThreads = "0.8"
-OptimPackNextGen = "0.4"
+OptimPackNextGen = "0.4.3"
 Optimisers = "0.4"
 Parameters = "0.12, 0.13"
 ProgressMeter = "1"
@@ -70,8 +71,8 @@ SpecialFunctions = "2.9.0"
 StaticArrays = "1"
 StatsBase = "0.33, 0.34"
 StructuredArrays = "0.2"
-TwoDimensional = "0.5, 0.6"
-TypeUtils = "1, 2.0"
+TwoDimensional = "0.5"
+TypeUtils = "1, 2"
 WeightedData = "0.3.5"
 ZippedArrays = "0.2"
 julia = "1.10"

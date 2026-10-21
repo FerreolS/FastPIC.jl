@@ -1,9 +1,16 @@
 function build_neighborhood(lenslet_width, lenslet_θ; radius = 1, width = 0, height = 0, depth = 1)
     neighb(i) = lenslet_width .* reverse(sincos(lenslet_θ .+ i .* (60 / 180 * π)))
 
-    neighboring_lenslets = CartesianIndex.(vcat((0, 0, 0), [tuple(round.(Int, j .* neighb(i))..., 0) for i in 1:6, j in 1:radius]...))
-    searchdirection = CartesianIndices((-width:width, -height:height, -depth:depth))
-    return (neighboring_lenslets .+ reshape(searchdirection, 1, 2width + 1, 2height + 1, 2depth + 1))[:]
+    if depth < 0
+        neighboring_lenslets = CartesianIndex.(vcat((0, 0), [round.(Int, j .* neighb(i)) for i in 1:6, j in 1:radius]...))
+        searchdirection = CartesianIndices((-width:width, -height:height))
+        return (neighboring_lenslets .+ reshape(searchdirection, 1, 2width + 1, 2height + 1))[:]
+    else
+        neighboring_lenslets = CartesianIndex.(vcat((0, 0, 0), [tuple(round.(Int, j .* neighb(i))..., 0) for i in 1:6, j in 1:radius]...))
+        searchdirection = CartesianIndices((-width:width, -height:height, -depth:depth))
+        return (neighboring_lenslets .+ reshape(searchdirection, 1, 2width + 1, 2height + 1, 2depth + 1))[:]
+
+    end
 end
 
 function nonlocalmedian(
@@ -105,12 +112,16 @@ end
 function refine_bad_pixels!(
         data::WeightedArray{T, M},
         lenslet_width,
-        lenslet_θ; radius = 1, width = 0, height = 0, depth = size(data, 3)
+        lenslet_θ;
+        radius = 1,
+        width = 0,
+        height = 0,
+        depth = size(data, 3),
+        threshold = 5
     ) where {T, M}
     neighborhood = build_neighborhood(lenslet_width, lenslet_θ; radius = radius, width = width, height = height, depth = depth)
     median, mad = nonlocalmedian(data.value, neighborhood)
-    threshold = 5 .* mad
-    bad_pixels = abs.(data.value .- median) .> threshold
+    bad_pixels = abs.(get_value(data) .- median) .> (threshold * mad)
     data.precision[bad_pixels] .= T(0)
     nulprecision = data.precision .== T(0)
     data.value[nulprecision] .= median[nulprecision]
