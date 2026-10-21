@@ -121,8 +121,8 @@ function build_sparse_interpolation_integration_coordinate_list(knots::AbstractA
     c = 1
 
     for (l, (lsample, usample)) in enumerate(zip(lowersample, uppersamples))
-        uoffweights = InterpolationKernels.compute_offset_and_weights(kernel, T.(find_index(knots, usample)))
-        loffweights = InterpolationKernels.compute_offset_and_weights(kernel, T.(find_index(knots, lsample)))
+        uoffweights = InterpolationKernels.compute_offset_and_weights(kernel, T.(find_index(knots, usample) - 1 / 2))
+        loffweights = InterpolationKernels.compute_offset_and_weights(kernel, T.(find_index(knots, lsample) - 1 / 2))
         uweights = vcat(uoffweights[2]...)[2:end]
         uoff::Int = round(Int, uoffweights[1]) + 1
 
