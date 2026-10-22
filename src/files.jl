@@ -1,6 +1,6 @@
 using AstroFITS, WeightedData, FastPIC, FITSexplore, FITSHeaders, LinOps, OptimPackNextGen, DifferentiationInterface, Zygote, RobustModels
-folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/2025-10-20"
-#folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/roots-18"
+#folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/2025-10-20"
+folder = "/Users/ferreol/Data/RawData/SPHERE/130Elektra/reduced/roots-18"
 filedict = fitsexplore(folder; recursive = false)
 
 specposfiles = deepcopy(filedict)
@@ -72,9 +72,9 @@ for (filename, header) in objectfiles
         G = LinOpGrad(LinOps.inputsize(PIC); offsets = (1, 1, 0))
         nframes = header["NAXIS3"].value(Int)
         XX = zeros(inputsize(PIC)..., nframes)
-        data_spectra = extract_spectra(data, profiles_; transmission = transmission, restrict = 0, nonnegative = true)
+        data_spectra = extract_spectra(data, profiles_; transmission = transmission, restrict = 0, nonnegative = false)
         d = flatten_spectra(data_spectra)
-        x0 = zeros(LinOps.inputspace(PIC))
+        # x0 = zeros(LinOps.inputspace(PIC))
 
         hdr = readfits(FitsHeader, filename)
         hdr_filtered = filter(!is_structural, hdr)
@@ -86,7 +86,7 @@ for (filename, header) in objectfiles
             fg!(x, grad) = DifferentiationInterface.value_and_gradient!(ff, grad, AutoZygote(), x)[1]
             x0 = mean(((PIC * PIC' * d[:, :, i].value) .\ d[:, :, i].value)[d[:, :, i].precision .> 0]) .\ max.(0.0, (PIC' * d[:, :, i].value))
 
-            output = vmlmb(fg!, x0; maxeval = 5000, verb = 50, lower = 0.0, xtol = (0.0, 1.0e-9))
+            output = vmlmb(fg!, x0; maxeval = 500, verb = 50, lower = 0.0, xtol = (0.0, 1.0e-9))
             XX[:, :, :, i] .= output
         end
         dirname, filename = splitdir(filename)
