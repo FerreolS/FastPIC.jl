@@ -130,11 +130,16 @@ function estimate_transmission(
         lamp_spectra::Vector{<:WeightedVector{T}},
         lamp_template,
         templateλ;
+        threshold = 0.02,
         ntasks = 4 * Threads.nthreads()
     ) where {T}
     modeled_spectra = build_spectra_models(profiles, lamp_template, templateλ)
     transmission = tmap(WeightedVector{T}, lamp_spectra, modeled_spectra; ntasks = ntasks) do lamp_spec, model_spec
-        lamp_spec ./ model_spec
+        t = lamp_spec ./ model_spec
+        med = median(model_spec)
+        t[model_spec .< threshold * med] .= WeightedValue{T}(0, 0)
+        t[lamp_spec.value .> (3 * maximum(model_spec))] .= WeightedValue{T}(0, 0)
+        return t
     end
     return transmission
 end

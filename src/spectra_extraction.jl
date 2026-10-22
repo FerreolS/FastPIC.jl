@@ -20,7 +20,7 @@ where P is the profile, W is the precision matrix, and d is the data.
 
 # Examples
 ```julia
-spectrum = extract_spectrum(detector_data, trace_profile; nonnegative=true)
+spectrum = extract_spectrum(detector_data, trace_profile; nonnegative=false)
 ```
 """
 function extract_spectrum(
@@ -84,7 +84,7 @@ function extract_spectra(
         profiles;
         transmission = FastUniformArray(T(1), length(profiles)),
         restrict = 0,
-        nonnegative::Bool = true,
+        nonnegative::Bool = false,
         ntasks = 4 * Threads.nthreads()
     ) where {T <: Real, N}
     (1 < N <= 3) || error("extract_spectra: data must have 2 or 3 dimensions")
@@ -115,8 +115,10 @@ function extract_spectra(
                 spectra[i] = spectra[i] ./ T(transmission[i])
             end
         end
-    else
+    elseif Base.typesplit(eltype(transmission), LensletError) <: WeightedArray
         spectra = correct_spectral_transmission(spectra, transmission)
+    else
+        spectra = (./).(spectra, transmission)
     end
     return spectra
 end
@@ -130,7 +132,7 @@ Díaz-Francés, Eloísa; Rubio, Francisco J. (2012-01-24). "On the existence of 
 
 function correct_spectral_transmission(
         spectra::AbstractVector{<:AbstractArray{<:WeightedValue{T}}},
-        transmission
+        transmission::AbstractVector{<:AbstractArray{<:WeightedValue}}
     ) where {T}
     corrected = similar(spectra)
     tforeach(axes(corrected, 1); ntasks = 4 * Threads.nthreads()) do i
@@ -139,6 +141,7 @@ function correct_spectral_transmission(
         spec_prec = spectra[i].precision
         mean_spec = @. T(spec_val / value)
         var_spec = @. T(inv(spec_prec) / (value .^ 2) + (spec_val / value) .^ 2 .* inv(precision) / (value .^ 2))
+
         corrected[i] = WeightedArray(mean_spec, inv.(var_spec))
     end
     return corrected
