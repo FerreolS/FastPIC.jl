@@ -285,19 +285,23 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
         end
 
         _, profiles = filter_profiles(profiles)
-        verbose && print("computing transmission... ")
-        t = @elapsed  begin
-            Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
-            corrected_lamp = lamp .- Xtalk_model
-            lamp_spectra = extract_spectra(corrected_lamp, profiles)
-            template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
-            if calib_params.pixelwise_transmission
-                transmission = estimate_transmission(profiles, lamp_spectra, template, lλ; ntasks = calib_params.ntasks)
-            end
-        end
+        verbose && println("finalizing... ")
+        verbose && print("build_crosstalk_model... ")
+        t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+        verbose && println("  done in $t s")
+        corrected_lamp = lamp .- Xtalk_model
+        verbose && print("re-extracting lamp spectra... ")
+        t = @elapsed           lamp_spectra = extract_spectra(corrected_lamp, profiles)
+        verbose && println("  done in $t s")
+        verbose && print("re-estimating template and transmission... ")
+        t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
         verbose && println("  done in $t s")
 
-
+        if calib_params.pixelwise_transmission
+            verbose && print("estimating pixelwise transmission... ")
+            t = @elapsed             transmission = estimate_transmission(profiles, lamp_spectra, template, lλ; ntasks = calib_params.ntasks)
+            verbose && println("  done in $t s")
+        end
     end
     verbose && @info "total calibration time: $total_time s"
 
