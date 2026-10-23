@@ -41,7 +41,7 @@ function nonlocalmedian!(
         selected_area = CartesianIndices(ntuple(n -> axes(values, n), M))
     end
 
-    _nlmedian_kernel8!(backend)(
+    _nlmedian_kernel!(backend)(
         _median,
         _mad,
         values,
@@ -56,7 +56,7 @@ function nonlocalmedian!(
 end
 
 
-@kernel  function _nlmedian_kernel8!(
+@kernel  function _nlmedian_kernel!(
         _median,
         _mad,
         @Const(array::AbstractArray{T, M}),
@@ -66,17 +66,20 @@ end
     ) where {C, T, M, NT, ST}
     index = @index(Global, Cartesian)
 
-    buf = MVector{C, T}(undef)
-    dev = MVector{C, T}(undef)
+    # buf = MVector{C, T}(undef)
+    # dev = MVector{C, T}(undef)
+    buf = @private T (C,)
+    dev = @private T (C,)
+
     counter = 0
 
     if NT <: CartesianIndices && ST <: CartesianIndices
-        for candidate in (neighborhood .+ index) ∩ selected_area
+        @inbounds for candidate in (neighborhood .+ index) ∩ selected_area
             counter += 1
-            @inbounds buf[counter] = array[candidate]
+            buf[counter] = array[candidate]
         end
     else
-        for k in eachindex(neighborhood)
+        @inbounds for k in eachindex(neighborhood)
             candidate = neighborhood[k] + index
             candidate ∈ selected_area || continue
             counter += 1
@@ -85,8 +88,8 @@ end
     end
 
     @inbounds med = _sorted_median!(buf, counter)
-    for i in 1:counter
-        @inbounds dev[i] = abs(buf[i] - med)
+    @inbounds for i in 1:counter
+        dev[i] = abs(buf[i] - med)
     end
     # same normalisation as StatsBase.mad (normalize = true)
     @inbounds _mad[index] = _sorted_median!(dev, counter) * T(1.482602218505602)
