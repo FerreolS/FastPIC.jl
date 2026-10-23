@@ -87,7 +87,7 @@ end
 function build_boxes(grid, lamp; threshold = 4, bboxparams = BboxParams(), xshift_bbox = false)
     medlamp = median(lamp.value)
     mask = trues(size(grid, 2))
-    boxes = Vector{BoundingBox{Int}}(undef, size(grid, 2))
+    boxes = Vector{ProfileBBox}(undef, size(grid, 2))
     @inbounds   for i in axes(grid, 2)
         box = get_bbox(grid[1, i], grid[2, i]; bbox_params = bboxparams)
         if box isa LensletError
@@ -254,7 +254,7 @@ function initialize_bboxes(
         end
         valid[i] = true
         idx = argmax(view(corr, bbox))
-        idx += CartesianIndex(bbox.xmin - 1, bbox.ymin - 1)
+        idx += first(bbox) .- CartesianIndex(1, 1)
         centers[1, i] = idx[1]
         centers[2, i] = idx[2]
     end

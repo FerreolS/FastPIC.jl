@@ -35,7 +35,7 @@ function extract_spectrum(
         (; value, precision) = data
     else
         if N > 2
-            (; value, precision) = view(data, axes(profile.bbox, 1), axes(profile.bbox, 2), :)
+            (; value, precision) = view(data, bbox_ranges(profile.bbox)..., :)
         else
             (; value, precision) = view(data, bbox)
         end

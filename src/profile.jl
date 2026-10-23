@@ -5,7 +5,7 @@ A parametric model of the spectrum of each SPHERE/IFS lenslet.
 
 # Fields
 - `type::Type{T}`: Numeric type for computations (e.g., Float64)
-- `bbox::BoundingBox{Int64}`: Bounding box defining the spatial extent on the lenslet on the detector
+- `bbox::CartesianIndices{2, Tuple{UnitRange{Int64}, UnitRange{Int64}}}`: Spatial extent on the detector
 - `ycenter::Float64`: Central position along the dispersion axis
 - `cfwhm::Array{Float64,N}`: Polynomial coefficients for FWHM variation (N=1 symmetric, N=2 asymmetric)
 - `cx::Vector{Float64}`: Polynomial coefficients for lateral center position variation
@@ -13,21 +13,40 @@ A parametric model of the spectrum of each SPHERE/IFS lenslet.
 
 # Examples
 ```julia
-bbox = BoundingBox(xmin=10, xmax=50, ymin=100, ymax=150)
+bbox = CartesianIndices((10:50, 100:150))
 cfwhm = [2.5, 0.1]  # FWHM coefficients
 cx = [25.0, 0.05]   # Center position coefficients
 profile = Profile(Float64, bbox, 125.0, cfwhm, cx)
 ```
 """
+const ProfileBBox = CartesianIndices{2, Tuple{UnitRange{Int64}, UnitRange{Int64}}}
+
+bbox_ranges(bbox::ProfileBBox) = bbox.indices
+bbox_ranges(bbox::ProfileBBox, dim::Int) = bbox.indices[dim]
+
+function _grow_bbox(bbox::ProfileBBox, dx::Integer, dy::Integer, limits::ProfileBBox)
+    widths = (dx, dy)
+    bbox_ranges = bbox_ranges(bbox)
+    limit_ranges = bbox_ranges(limits)
+    ranges = ntuple(2) do dim
+        axis = bbox_ranges[dim]
+        limit = limit_ranges[dim]
+        lo = max(first(axis) - widths[dim], first(limit))
+        hi = min(last(axis) + widths[dim], last(limit))
+        Int64(lo):Int64(hi)
+    end
+    return CartesianIndices(ranges)
+end
+
 struct Profile{T, N, C}
     type::Type{T}
-    bbox::BoundingBox{Int64}
+    bbox::ProfileBBox
     ycenter::Float64
     cfwhm::Array{Float64, N}
     cx::Vector{Float64}
     spectral_coefs::C
     position::Tuple{Float64, Float64}
-    function Profile(T::Type, bbox::BoundingBox{Int}, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector, spectral_coefs::C, position::NTuple{2, Float64} = (0.0, 0.0)) where {N, T2 <: Real, C <: Union{Nothing, <:AbstractVector{Float64}}}
+    function Profile(T::Type, bbox::ProfileBBox, ycenter::Real, cfwhm::AbstractArray{T2, N}, cx::AbstractVector, spectral_coefs::C, position::NTuple{2, Float64} = (0.0, 0.0)) where {N, T2 <: Real, C <: Union{Nothing, <:AbstractVector{Float64}}}
         @assert T <: Real
         size(cfwhm, 1) ≥ 1 || throw(ArgumentError("cfwhm must have at least one row"))
         length(cx) ≥ 1 || throw(ArgumentError("cx must have at least one element"))
@@ -62,10 +81,10 @@ function filter_profiles(x::AbstractVector{<:Union{Profile, LensletError}})
     return good_profile, filtered
 end
 
-Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector) =
-    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing)
-Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVector, position::NTuple{2}) =
-    Profile(T, bbox, mean(axes(bbox, 2)), cfwhm, cx, nothing, position)
+Profile(T::Type, bbox::ProfileBBox, cfwhm::AbstractArray, cx::AbstractVector) =
+    Profile(T, bbox, mean(bbox_ranges(bbox, 2)), cfwhm, cx, nothing)
+Profile(T::Type, bbox::ProfileBBox, cfwhm::AbstractArray, cx::AbstractVector, position::NTuple{2}) =
+    Profile(T, bbox, mean(bbox_ranges(bbox, 2)), cfwhm, cx, nothing, position)
 
 #Profile(bbox, ycenter, cfwhm, cx) = Profile(Float64, bbox, ycenter, cfwhm, cx, nothing)
 
@@ -75,11 +94,11 @@ Profile(T::Type, bbox::BoundingBox{Int}, cfwhm::AbstractArray, cx::AbstractVecto
 ((; type, bbox, ycenter, cfwhm, cx)::Profile)(::Type{T2}) where {T2} =
     get_footprint(T2, bbox, ycenter, cfwhm, cx)
 
-((; type, ycenter, cfwhm, cx)::Profile)(bbox::BoundingBox{Int}) =
+((; type, ycenter, cfwhm, cx)::Profile)(bbox::ProfileBBox) =
     get_footprint(type, bbox, ycenter, cfwhm, cx)
 
 """
-    get_footprint(::Type{T}, bbox::BoundingBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
+    get_footprint(::Type{T}, bbox::ProfileBBox, ycenter::Float64, cfwhm::Array, cx::Vector) where {T,N}
 
 Generate a 2D Gaussian-like profile model over the specified bounding box.
 
@@ -101,7 +120,7 @@ For N=2, supports asymmetric profiles with different left/right widths.
 """
 function get_footprint(
         ::Type{T},
-        bbox::BoundingBox{Int64},
+        bbox::ProfileBBox,
         ycenter::Float64,
         cfwhm::Array{Float64, N},
         cx::Vector{Float64}
@@ -115,7 +134,7 @@ function get_footprint(
 
     order = max(xorder, fwhmorder)
 
-    _, ay = axes(bbox)
+    _, ay = bbox_ranges(bbox)
     ypo = ((ay .- ycenter)) .^ reshape(0:order, 1, order + 1)
 
     xcenter = view(ypo, :, 1:xorder) * cx
@@ -125,7 +144,8 @@ function get_footprint(
 
     img = zeros(T, size(bbox)...)
 
-    ax = (bbox.xmin - 0.5):(bbox.xmax + 0.5)
+    x_range = bbox_ranges(bbox, 1)
+    ax = (first(x_range) - 0.5):(last(x_range) + 0.5)
 
     @inbounds @simd for j in axes(img, 2)
         integ = Vector{T}(undef, length(ax))
@@ -158,23 +178,18 @@ and offsets determined by the bbox_params configuration.
 - `bbox_params`: Configuration for bounding box dimensions
 
 # Returns
-- `BoundingBox{Int}` if valid, or `lenslet_out_of_bounds` if outside the detector
+- `ProfileBBox` if valid, or `lenslet_out_of_bounds` if outside the detector
 """
 function get_bbox(center_x::Real, center_y::Real; bbox_params::BboxParams = BboxParams())
     @unpack_BboxParams bbox_params
-    bbox = round(
-        Int,
-        BoundingBox(;
-            xmin = center_x - BBOX_DX_LOWER,
-            xmax = center_x + BBOX_DX_UPPER,
-            ymin = center_y - BBOX_DY_LOWER,
-            ymax = center_y + BBOX_DY_UPPER
-        ),
-        RoundNearestTiesUp
-    ) # rounding mode to preserve bbox size
+    xmin = round(Int, center_x - BBOX_DX_LOWER, RoundNearestTiesUp)
+    xmax = round(Int, center_x + BBOX_DX_UPPER, RoundNearestTiesUp)
+    ymin = round(Int, center_y - BBOX_DY_LOWER, RoundNearestTiesUp)
+    ymax = round(Int, center_y + BBOX_DY_UPPER, RoundNearestTiesUp)
+    bbox = CartesianIndices((xmin:xmax, ymin:ymax))
 
     size(bbox) == (BBOX_WIDTH, BBOX_HEIGHT) || return lenslet_out_of_bounds
-    ((bbox.xmin ≥ 1) & (bbox.xmax ≤ 2048) & (bbox.ymin ≥ 1) & (bbox.ymax ≤ 2048)) || return lenslet_out_of_bounds
+    (xmin ≥ 1 && xmax ≤ 2048 && ymin ≥ 1 && ymax ≤ 2048) || return lenslet_out_of_bounds
     return bbox
 end
 
@@ -220,7 +235,7 @@ end
 
 
 function get_wavelength(profile::Profile{T, N, <:AbstractVector{Float64}}) where {T, N}
-    return get_wavelength(profile.spectral_coefs, profile.ycenter - profile.bbox.ymin, 1:size(profile.bbox, 2))
+    return get_wavelength(profile.spectral_coefs, profile.ycenter - first(profile.bbox)[2], axes(profile.bbox, 2))
 end
 
 function get_wavelength(profile::Profile{T, N, Nothing}) where {T, N}

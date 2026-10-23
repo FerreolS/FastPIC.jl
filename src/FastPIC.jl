@@ -86,7 +86,6 @@ methods commonly used in astronomical spectroscopy:
 
 Core dependencies include:
 - `WeightedData.jl`: Uncertainty propagation and weighted statistics
-- `TwoDimensional.jl`: 2D geometric operations and bounding boxes
 - `OptimPackNextGen.jl`: Derivative-free optimization (NEWUOA algorithm)
 - `InterpolationKernels.jl`: High-quality interpolation for spectral resampling
 
@@ -125,7 +124,6 @@ using Accessors,
     StaticArrays,
     StatsBase,
     StructuredArrays,
-    TwoDimensional,
     TypeUtils,
     WeightedData,
     ZippedArrays

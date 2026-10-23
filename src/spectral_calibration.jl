@@ -447,7 +447,7 @@ function recalibrate_wavelengths(
                 coef = copy(spectral_coefs)
             end
             try
-                coef = spectral_refinement(coef, lamp_spectra[i], template, lλ, profile.ycenter - profile.bbox.ymin, lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
+                coef = spectral_refinement(coef, lamp_spectra[i], template, lλ, profile.ycenter - first(profile.bbox)[2], lasers_λs, lasers_model[i].fwhm, laser_spectra[i])
                 @reset profile.spectral_coefs = coef
             catch e
                 @debug "Spectral refinement failed for lenslet $i: $e"
@@ -511,7 +511,7 @@ function spectral_calibration!(
             coef = copy(spectral_coefs)
         end
         try
-            coef = spectral_refinement(coef, lamp_spectrum, template, lλ, profile.ycenter - profile.bbox.ymin, lasers_λs, lasers_model.fwhm, laser_spectrum)
+            coef = spectral_refinement(coef, lamp_spectrum, template, lλ, profile.ycenter - first(profile.bbox)[2], lasers_λs, lasers_model.fwhm, laser_spectrum)
             @reset profile.spectral_coefs = coef
         catch e
             @debug "Spectral refinement failed for lenslet $i: $e"
@@ -586,7 +586,7 @@ function laser_calibration!(
                     throw("W singular  for lenslet $i")
                 end
                 coefs = laser_calibration(
-                    spectral_initial_order, profile.ycenter - profile.bbox.ymin, lasers_λs, las[i].position, W
+                    spectral_initial_order, profile.ycenter - first(profile.bbox)[2], lasers_λs, las[i].position, W
                 )
                 if any(isnan.(coefs))
                     throw("NaN found in coefs for lenslet $i")

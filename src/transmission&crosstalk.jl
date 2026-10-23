@@ -9,8 +9,8 @@ end
 
 
 function get_neighbor_lenslets(lmap, bbox)
-    detector = BoundingBox(1:2048, 1:2048)
-    lbox = TwoDimensional.grow(bbox, 2, 0) ∩ detector
+    detector = CartesianIndices((1:2048, 1:2048))
+    lbox = _grow_bbox(bbox, 2, 0, detector)
     return unique(view(lmap, lbox)[[1, end], :])
 end
 
@@ -31,15 +31,18 @@ function build_crosstalk_matrix(profiles::AbstractVector{<:Profile{T}}) where {T
             continue
         end
         bbox = profile.bbox
-        (; ymin, ymax) = bbox
+        bbox_ranges = bbox_ranges(bbox)
+        ymin = first(bbox_ranges[2])
         neighbors = get_neighbor_lenslets(lmap, bbox)
         for neighbor in neighbors
             (neighbor == 0 || neighbor == idx) && continue
             neighbor_profile = profiles[neighbor]
-            sharedy = axes(bbox, 2) ∩ axes(neighbor_profile.bbox, 2)
-            nrange = (sharedy.start - ymin + 1):(sharedy.stop - ymin + 1)
-            sharedbbx = BoundingBox(axes(bbox, 1), sharedy)
-            nbr_range = (sharedy.start - neighbor_profile.bbox.ymin + 1):(sharedy.stop - neighbor_profile.bbox.ymin + 1)
+            neighbor_ranges = bbox_ranges(neighbor_profile.bbox)
+            sharedy = bbox_ranges[2] ∩ neighbor_ranges[2]
+            nrange = (first(sharedy) - ymin + 1):(last(sharedy) - ymin + 1)
+            sharedbbx = CartesianIndices((bbox_ranges[1], sharedy))
+            neighbor_ymin = first(neighbor_ranges[2])
+            nbr_range = (first(sharedy) - neighbor_ymin + 1):(last(sharedy) - neighbor_ymin + 1)
             values = sum(neighbor_profile(sharedbbx) .* profile(sharedbbx); dims = 1)[:]
             append!(I, (nrange .- 1) .* nprofiles .+ idx)
             append!(J, (nbr_range .- 1) .* nprofiles .+ neighbor)
@@ -61,7 +64,7 @@ function build_crosstalk_model(
     T = eltype(Base.typesplit(eltype(profiles), LensletError))
 
     T == Union{} && throw(ArgumentError("Profiles contains only LensletError"))
-    detector = BoundingBox(1:2048, 1:2048)
+    detector = CartesianIndices((1:2048, 1:2048))
 
     models = build_spectra_models(profiles, template, λ, transmission; ntasks = ntasks)
 
@@ -74,9 +77,9 @@ function build_crosstalk_model(
 
         if is_profile(profile)
             bbox = profile.bbox
-            bboxL = TwoDimensional.grow(bbox, crosstalk_width, 0) ∩ detector
+            bboxL = _grow_bbox(bbox, crosstalk_width, 0, detector)
 
-            A = OffsetArray(zeros(T, size(bboxL)), axes(bboxL)...)
+            A = OffsetArray(zeros(T, size(bboxL)), bbox_ranges(bboxL)...)
             OffsetArrays.no_offset_view(view(A, bboxL)) .= profile(bboxL) .* reshape(model, 1, :)
             view(A, bbox) .= zero(T)
             @inbounds for (k, idx) in enumerate(view(Xtalk_model_indices, bboxL))
@@ -146,7 +149,7 @@ end
 
 
 function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Float64)
-    detectorbbox = BoundingBox(1:2048, 1:2048)
+    detectorbbox = CartesianIndices((1:2048, 1:2048))
     model = zeros(T, 2048, 2048)
     model_indices = LinearIndices(model)
     model_view = unsafe_wrap(AtomicMemory{T}, pointer(model), length(model); own = false)
@@ -154,13 +157,13 @@ function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Fl
         if !is_profile(profile)
             continue
         end
-        lbox = TwoDimensional.grow(profile.bbox, extra_width, 0) ∩ detectorbbox
+        lbox = _grow_bbox(profile.bbox, extra_width, 0, detectorbbox)
         if modeled_spectra isa AbstractVector
             prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
         else
             prfl = profile(lbox) .* reshape(modeled_spectra[i, :], 1, :) #.* reshape(transmission[i, :].value, 1, :)
         end
-        bbox_indices = view(model_indices, CartesianIndices(lbox))
+        bbox_indices = view(model_indices, lbox)
         @inbounds for (k, idx) in enumerate(bbox_indices)
             Atomix.@atomic model_view[idx] += prfl[k]
         end

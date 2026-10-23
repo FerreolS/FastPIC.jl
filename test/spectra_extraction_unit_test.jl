@@ -2,8 +2,8 @@
     using WeightedData
     import WeightedData: WeightedArray, get_value, get_precision
 
-    bbox1 = FastPIC.BoundingBox(xmin = 1, xmax = 3, ymin = 1, ymax = 4)
-    bbox2 = FastPIC.BoundingBox(xmin = 4, xmax = 6, ymin = 1, ymax = 4)
+    bbox1 = CartesianIndices((1:3, 1:4))
+    bbox2 = CartesianIndices((4:6, 1:4))
 
     p1 = FastPIC.Profile(Float64, bbox1, [2.5], [2.0])
     p2 = FastPIC.Profile(Float64, bbox2, [2.5], [5.0])
