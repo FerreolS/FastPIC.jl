@@ -205,7 +205,7 @@ end
 function cross_correlation(λ, lasers, laser_line_width, lasers_λs)
     T = Float64
     F = LinOpDFT(T, (2048, 2048))
-    Δλ = (λ[end] - λ[1]) / length(λ)
+    Δλ = (λ[end] - λ[1]) / (length(λ) - 1)
 
     image_template = zeros(T, 2048, 2048)
 
@@ -238,7 +238,7 @@ function initialize_bboxes(
     @unpack_FastPICParams calib_params
     @unpack_BboxParams bbox_params
 
-    corr = cross_correlation(λ_template, lasers, laser_line_width[1], lasers_λs)
+    corr = cross_correlation(wavelengths, lasers, laser_line_width[1], lasers_λs)
     medlamp = median(lamp.value)
 
     centers = filter_grid(transform_grid(hexagonal_grid(150), lenslets_offset, lenslets_scale, lenslets_θ))

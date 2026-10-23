@@ -113,20 +113,12 @@ Assertion checks validate parameter consistency and ranges.
     calibration_verbose::Bool = true
 
     # Position of the lenslets
-    template_path::String = dirname(pathof(FastPIC))
-    template_file::String = nλ == 3 ? joinpath(template_path, "lamp_YJ.txt") : joinpath(template_path, "lamp_YJH.txt")
-    λ_template::Vector{Float64} = readdlm(template_file, Float64)[:, 1]
-    lamp_template::Vector{Float64} = readdlm(template_file, Float64)[:, 2]
+    wavelengths::Union{Vector{Float64}, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}} = nλ == 3 ? (9.154687770028847e-7:1.0833107523054241e-8:1.381292400494217e-6) : (8.991207048168501e-7:1.942247101600781e-8:1.7342869585051859e-6)
     lenslets_offset::Vector{Float64} = [1024.0, 1024.0]
     lenslets_scale::Float64 = 15.5
     lenslets_θ::Float64 = 0.85
     lenslets_threshold::Float64 = 5.0
     lenslets_warping_order::Int = 3
-    position_maxeval::Int = 1000
-    position_scale::Float64 = 15.0
-    position_θ::Float64 = 0.0
-    position_offset::Union{Nothing, Vector{Float64}} = nothing
-    position_center::Vector{Float64} = [1024.0, 1024.0]
 
 
     # Profile Calibration parameters
@@ -157,7 +149,6 @@ Assertion checks validate parameter consistency and ranges.
     template_regul::Float64 = 0.1 # Tikhonov regularization parameter for spectral recalibration
     template_zero_boundary_regul::Float64 = 10.0 # Tikhonov regularization parameter for the zero boundary condition in spectral recalibration
 
-    transmission_threshold::Float64 = 0.5 # threshold to consider a lenslet as good when estimating the transmission, in terms of relative transmission (compared to the median transmission of all lenslets)
     pixelwise_transmission::Bool = false # whether to estimate the transmission for each pixel of the spectrum (true) or only one value per lenslet (false)
 
     ntasks::Int = 4 * Threads.nthreads()
