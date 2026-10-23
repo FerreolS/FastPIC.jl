@@ -149,6 +149,10 @@ Assertion checks validate parameter consistency and ranges.
     template_regul::Float64 = 0.1 # Tikhonov regularization parameter for spectral recalibration
     template_zero_boundary_regul::Float64 = 10.0 # Tikhonov regularization parameter for the zero boundary condition in spectral recalibration
 
+    bad_pixel_radius::Int = 2 # radius (in lenslets) around a  pixe to estimate the statistics for bad pixel detection
+    bad_pixel_threshold::Float64 = 5.0 # threshold (in sigma) to consider a pixel as a bad pixel
+
+    transmission_threshold::Float64 = 0.02 # threshold (%) for the transmission factor to consider it  valid
     pixelwise_transmission::Bool = false # whether to estimate the transmission for each pixel of the spectrum (true) or only one value per lenslet (false)
 
     ntasks::Int = 4 * Threads.nthreads()
@@ -233,14 +237,14 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
         verbose && println("  done in $t s")
 
         verbose && print("refining lamp bad pixels... ")
-        t = @elapsed refine_bad_pixels!(lamp, lenslet_width, lenslet_θ; radius = 2, depth = -1)
+        t = @elapsed refine_bad_pixels!(lamp, lenslet_width, lenslet_θ; radius = calib_params.bad_pixel_radius, depth = -1, threshold = calib_params.bad_pixel_threshold)
         verbose && println("  done in $t s")
 
         calibrate_profile!(profiles, lamp, calib_params = calib_params)
 
         verbose && print("extracting lamp spectra... ")
         t = @elapsed begin
-            lamp_spectra = extract_spectra(lamp, profiles)
+            lamp_spectra = extract_spectra(lamp, profiles; restrict = calib_params.lamp_extract_restrict, ntasks = calib_params.ntasks)
             filter_spectra_outliers!(lamp_spectra; threshold = calib_params.outliers_threshold)
         end
         verbose && println("  done in $t s")
@@ -257,7 +261,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
             verbose && println("loop $loop_idx of $(calib_params.profile_loop) ")
 
             verbose && print("build_crosstalk_model... ")
-            t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+            t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width, ntasks = calib_params.ntasks)
             verbose && println("  done in $t s")
 
             corrected_lamp = lamp .- Xtalk_model
@@ -265,7 +269,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
             calibrate_profile!(profiles, corrected_lamp, calib_params = calib_params)
 
             verbose && print("re-extracting lamp spectra... ")
-            t = @elapsed lamp_spectra = extract_spectra(corrected_lamp, profiles)
+            t = @elapsed lamp_spectra = extract_spectra(corrected_lamp, profiles; restrict = calib_params.lamp_extract_restrict, ntasks = calib_params.ntasks)
             verbose && println("  done in $t s")
 
             spectral_calibration!(profiles, lasers_models, lamp_spectra, laser_spectra, template, lλ; calib_params = calib_params)
@@ -278,11 +282,11 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
         _, profiles = filter_profiles(profiles)
         verbose && println("finalizing... ")
         verbose && print("build_crosstalk_model... ")
-        t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width)
+        t = @elapsed Xtalk_model = build_crosstalk_model(profiles, template, lλ, transmission; crosstalk_width = calib_params.extra_width, ntasks = calib_params.ntasks)
         verbose && println("  done in $t s")
         corrected_lamp = lamp .- Xtalk_model
         verbose && print("re-extracting lamp spectra... ")
-        t = @elapsed           lamp_spectra = extract_spectra(corrected_lamp, profiles)
+        t = @elapsed           lamp_spectra = extract_spectra(corrected_lamp, profiles; restrict = calib_params.lamp_extract_restrict, ntasks = calib_params.ntasks)
         verbose && println("  done in $t s")
         verbose && print("re-estimating template and transmission... ")
         t = @elapsed template, transmission = estimate_template(profiles, lλ, lamp_spectra; regul = calib_params.template_regul, zero_boundary_regul = calib_params.template_zero_boundary_regul)
@@ -290,7 +294,7 @@ function calibrate(lamp, lasers; calib_params::FastPICParams = FastPICParams(), 
 
         if calib_params.pixelwise_transmission
             verbose && print("estimating pixelwise transmission... ")
-            t = @elapsed             transmission = estimate_transmission(profiles, lamp_spectra, template, lλ; ntasks = calib_params.ntasks)
+            t = @elapsed             transmission = estimate_transmission(profiles, lamp_spectra, template, lλ; ntasks = calib_params.ntasks, threshold = calib_params.transmission_threshold)
             verbose && println("  done in $t s")
         end
     end
