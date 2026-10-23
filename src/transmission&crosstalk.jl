@@ -31,16 +31,16 @@ function build_crosstalk_matrix(profiles::AbstractVector{<:Profile{T}}) where {T
             continue
         end
         bbox = profile.bbox
-        bbox_ranges = bbox_ranges(bbox)
-        ymin = first(bbox_ranges[2])
+        _bbox_ranges = bbox_ranges(bbox)
+        ymin = first(_bbox_ranges[2])
         neighbors = get_neighbor_lenslets(lmap, bbox)
         for neighbor in neighbors
             (neighbor == 0 || neighbor == idx) && continue
             neighbor_profile = profiles[neighbor]
-            neighbor_ranges = bbox_ranges(neighbor_profile.bbox)
-            sharedy = bbox_ranges[2] ∩ neighbor_ranges[2]
+            neighbor_ranges = _bbox_ranges(neighbor_profile.bbox)
+            sharedy = _bbox_ranges[2] ∩ neighbor_ranges[2]
             nrange = (first(sharedy) - ymin + 1):(last(sharedy) - ymin + 1)
-            sharedbbx = CartesianIndices((bbox_ranges[1], sharedy))
+            sharedbbx = CartesianIndices((_bbox_ranges[1], sharedy))
             neighbor_ymin = first(neighbor_ranges[2])
             nbr_range = (first(sharedy) - neighbor_ymin + 1):(last(sharedy) - neighbor_ymin + 1)
             values = sum(neighbor_profile(sharedbbx) .* profile(sharedbbx); dims = 1)[:]
