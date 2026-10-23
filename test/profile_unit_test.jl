@@ -39,11 +39,11 @@
         @test FastPIC.get_bbox(0, 0) === FastPIC.lenslet_out_of_bounds
 
         limits = CartesianIndices((1:10, 1:10))
-        @test FastPIC._grow_bbox(CartesianIndices((5:7, 4:6)), 2, 1, limits) ==
+        @test FastPIC.grow_bbox(CartesianIndices((5:7, 4:6)), 2, 1, limits) ==
             CartesianIndices((3:9, 3:7))
         off_origin = CartesianIndices((10:20, 100:110))
         off_origin_limits = CartesianIndices((1:50, 1:150))
-        @test FastPIC._grow_bbox(off_origin, 2, 3, off_origin_limits) ==
+        @test FastPIC. grow_bbox(off_origin, 2, 3, off_origin_limits) ==
             CartesianIndices((8:22, 97:113))
     end
 
@@ -60,7 +60,7 @@
     @testset "profile constructors share validation path" begin
         bbox = CartesianIndices((1:3, 1:4))
         shorthand = FastPIC.Profile(Float64, bbox, [2.5], [2.0], (3.0, 4.0))
-        explicit = FastPIC.Profile(Float64, bbox, mean(FastPIC._bbox_ranges(bbox)[2]), [2.5], [2.0], nothing, (3.0, 4.0))
+        explicit = FastPIC.Profile(Float64, bbox, mean(FastPIC.bbox_ranges(bbox, 2)), [2.5], [2.0], nothing, (3.0, 4.0))
         @test shorthand.bbox == explicit.bbox
         @test shorthand.ycenter == explicit.ycenter
         @test shorthand.cfwhm == explicit.cfwhm

@@ -10,7 +10,7 @@ end
 
 function get_neighbor_lenslets(lmap, bbox)
     detector = CartesianIndices((1:2048, 1:2048))
-    lbox = _grow_bbox(bbox, 2, 0, detector)
+    lbox = grow_bbox(bbox, 2, 0, detector)
     return unique(view(lmap, lbox)[[1, end], :])
 end
 
@@ -77,7 +77,7 @@ function build_crosstalk_model(
 
         if is_profile(profile)
             bbox = profile.bbox
-            bboxL = _grow_bbox(bbox, crosstalk_width, 0, detector)
+            bboxL = grow_bbox(bbox, crosstalk_width, 0, detector)
 
             A = OffsetArray(zeros(T, size(bboxL)), bbox_ranges(bboxL)...)
             OffsetArrays.no_offset_view(view(A, bboxL)) .= profile(bboxL) .* reshape(model, 1, :)
@@ -157,7 +157,7 @@ function build_detector_model(profiles, modeled_spectra; extra_width = 2, T = Fl
         if !is_profile(profile)
             continue
         end
-        lbox = _grow_bbox(profile.bbox, extra_width, 0, detectorbbox)
+        lbox = grow_bbox(profile.bbox, extra_width, 0, detectorbbox)
         if modeled_spectra isa AbstractVector
             prfl = profile(lbox) .* reshape(modeled_spectra[i], 1, :) #.* reshape(transmission[i, :].value, 1, :)
         else

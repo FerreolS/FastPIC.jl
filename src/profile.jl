@@ -24,12 +24,12 @@ const ProfileBBox = CartesianIndices{2, Tuple{UnitRange{Int64}, UnitRange{Int64}
 bbox_ranges(bbox::ProfileBBox) = bbox.indices
 bbox_ranges(bbox::ProfileBBox, dim::Int) = bbox.indices[dim]
 
-function _grow_bbox(bbox::ProfileBBox, dx::Integer, dy::Integer, limits::ProfileBBox)
+function grow_bbox(bbox::ProfileBBox, dx::Integer, dy::Integer, limits::ProfileBBox)
     widths = (dx, dy)
-    bbox_ranges = bbox_ranges(bbox)
+    _bbox_ranges = bbox_ranges(bbox)
     limit_ranges = bbox_ranges(limits)
     ranges = ntuple(2) do dim
-        axis = bbox_ranges[dim]
+        axis = _bbox_ranges[dim]
         limit = limit_ranges[dim]
         lo = max(first(axis) - widths[dim], first(limit))
         hi = min(last(axis) + widths[dim], last(limit))
