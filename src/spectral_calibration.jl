@@ -463,68 +463,6 @@ function recalibrate_wavelengths(
     isnothing(progressbar) || finish!(progressbar)
     return profiles, template, transmission
 end
-
-
-"""
-    spectral_calibration(lasers::WeightedArray{T,2}, lamp_spectra::Vector, profiles::AbstractVector; calib_params::FastPICParams=FastPICParams()) where {T}
-
-Perform complete spectral wavelength calibration using laser and lamp data.
-
-This is the main entry point for spectral calibration, combining:
-1. Laser line fitting for initial wavelength solutions
-2. Template estimation from lamp spectra
-3. Iterative refinement of wavelength calibrations
-
-# Arguments
-- `lasers::WeightedArray{T,2}`: 2D laser calibration data
-- `lamp_spectra::Vector`: Extracted lamp spectra for each lenslet
-- `profiles::AbstractVector`: Spatial profile models for each lenslet
-- `calib_params::FastPICParams`: Configuration parameters
-
-# Returns
-- `Tuple{Vector, Vector{Float64}, Vector{Float64}, AbstractVector, Vector{Bool}}`: 
-  - Wavelength calibration coefficients
-  - Common lamp template spectrum
-  - Transmission factors for each lenslet
-  - Common wavelength grid
-  - Updated valid lenslets mask
-
-# Examples
-```julia
-coefs, template, transmission, λ_grid, valid = spectral_calibration(
-    laser_data, lamp_spectra, profiles; calib_params=my_params
-)
-```
-"""
-function spectral_calibration(
-        profiles::AbstractVector{<:Union{Profile, LensletError}},
-        lasers::WeightedArray{T, 2},
-        lamp_spectra::Vector{L};
-        calib_params::FastPICParams = FastPICParams()
-    ) where {T, L <: Union{LensletError, WeightedArray{T, 1}}}
-
-    @unpack_FastPICParams calib_params
-
-    laser_spectra, las, λs = laser_calibration!(profiles, lasers; calib_params = calib_params)
-    lλ = build_λrange(λs; superres = spectral_superres)
-
-    profiles, template, transmission = recalibrate_wavelengths(
-        profiles,
-        lλ,
-        spectral_final_order,
-        lamp_spectra,
-        laser_spectra,
-        lasers_λs,
-        las;
-        template_regul = template_regul,
-        template_zero_boundary_regul = template_zero_boundary_regul,
-        loop = spectral_recalibration_loop,
-        ntasks = ntasks,
-        verbose = calibration_verbose
-    )
-    return profiles, template, transmission, lλ, las
-end
-
 """
     spectral_calibration!(::Type{L}, lasers, profiles; calib_params::FastPICParams=FastPICParams()) where {L}
 

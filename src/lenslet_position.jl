@@ -12,52 +12,6 @@ function get_lensletmap(profiles)
 end
 
 
-"""
-    get_meanx(data::WeightedArray{T,N}, bbox; relative=false) where {T,N}
-
-Compute the precision-weighted mean position along the first axis.
-
-Calculates the centroid position using: `Σ(x * √w * I) / Σ(√w * I)`
-where x is position, w is precision (inverse variance), and I is intensity.
-
-# Arguments
-- `data::WeightedArray{T,N}`: Input weighted data
-- `bbox`: Bounding box defining the region of interest
-- `relative::Bool = false`
-
-# Returns
-- `Float64`: Precision-weighted mean position along the first axis
-
-# Examples
-```julia
-center_x = get_meanx(detector_data, profile_bbox)
-```
-"""
-function get_meanx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
-    (; value, precision) = view(data, bbox)
-
-    if relative
-        ax = axes(value, 1)
-    else
-        ax = axes(bbox, 1)
-    end
-
-    return sum(value .* sqrt.(precision) .* ax) ./ sum(sqrt.(precision) .* value)
-end
-
-function get_maxx(data::WeightedArray{T, N}, bbox; relative = false) where {T, N}
-    (; value, precision) = view(data, bbox)
-
-    if relative
-        ax = axes(value, 1)
-    else
-        ax = axes(bbox, 1)
-    end
-
-    return ax[argmax(sum(value .* precision, dims = 2) ./ sum(precision, dims = 2))[1]]
-end
-
-
 function transform_grid(grid, offset, scale, θ)
     R = @SArray [
         cos(θ) -sin(θ)
@@ -182,15 +136,6 @@ function adjust_grid_param!(
     return x
 end
 
-function init_grid_param(kdtree::KDTree, centers; scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
-    centeridx, _ = knn(kdtree, center, 1)
-    if isnothing(offset)
-        offset = centers[:, centeridx[:]][:]
-    end
-    x = vcat(offset..., scale..., θ)
-    return x
-end
-
 function hexagonal_grid(halflen)
     B = @SArray [
         1 1 / 2
@@ -206,43 +151,6 @@ function hexagonal_grid(halflen)
         n = n + 1
     end
     return grid[:, 1:(n - 1)]
-end
-
-function compute_lenslet_centers(profiles, laser_models, valid)
-    nb_valid = length(valid)
-    centers = zeros(Float64, 2, nb_valid)
-    for (n, i) in enumerate(valid)
-        centers[1, n] = profiles[i].cx[1]
-        centers[2, n] = profiles[i].bbox.ymin + laser_models[i].position[2]
-        # or  centers[2, n] = profiles[i].ycenter
-    end
-    return centers
-end
-function compute_lenslet_centers(profiles, valid)
-    nb_valid = length(valid)
-    centers = zeros(Float64, 2, nb_valid)
-    for (n, i) in enumerate(valid)
-        centers[1, n] = profiles[i].cx[1]
-        centers[2, n] = profiles[i].ycenter
-    end
-    return centers
-end
-
-function find_lenslet_position!(profiles; laser_models = nothing, halflensequence = (1, 5, 15, 25, 50, 100, 150, 200), maxeval = 1000, verbose = 0, scale = 15.0, θ = 0.0, offset = nothing, center = [1024.0, 1024.0])
-    valid = findall(is_profile, profiles)
-    if isnothing(laser_models)
-        centers = compute_lenslet_centers(profiles, valid)
-    else
-        centers = compute_lenslet_centers(profiles, laser_models, valid)
-    end
-    grid, x = fit_lenslet_grid(centers; halflensequence = halflensequence, maxeval = maxeval, verbose = verbose, scale = scale, θ = θ, offset = offset, center = center)
-    gridtree = KDTree(grid)
-    idx, _ = knn(gridtree, centers, 1)
-    positions = grid[:, vcat(idx...)]
-    for (n, i) in enumerate(valid)
-        Accessors.@reset profiles[i].position .= tuple(positions[:, n]...)
-    end
-    return profiles, x[3]
 end
 
 
@@ -291,43 +199,6 @@ function correct_lenslet_warping(grid, coefs)
     correction = A * coefs
     corrected_grid = grid .- correction'
     return corrected_grid
-end
-
-function cross_correlation(λ, lamp_spectrum, lasers, lamp, laser_line_width, lasers_λs, lamp_fwhms)
-    T = Float64
-    F = LinOpDFT(T, (2048, 2048))
-    Δλ = (λ[end] - λ[1]) / length(λ)
-
-
-    lamp_template = gaussian.(lamp_fwhms, T.(-2:2)) .* lamp_spectrum'
-    lamp_template ./= sum(lamp_template)
-    lamp_template ./= sqrt(sum(lamp_template .^ 2))
-    image_template = zeros(T, 2048, 2048)
-    image_template[1023:1027, 1004:1047] .= lamp_template[end:-1:1, end:-1:1]
-    image_template = fftshift(image_template)
-
-    A = (inv(F) * (F * image_template .* (F * (lamp.value .* lamp.precision))))
-    b = (inv(F) * (F * (image_template .^ 2) .* (F * lamp.precision)))
-
-    corrlamp = A ./ b
-
-    fvalue = F * (lasers.value .* lasers.precision)
-    fprecision = F * lasers.precision
-    for laser_λ in lasers_λs
-        laser_template = gaussian.(laser_line_width, T.(-2:2)) .* (gaussian.(laser_line_width * Δλ, T.(λ .- laser_λ)))'
-        laser_template ./= sum(laser_template)
-
-        laser_template ./= sqrt(sum(laser_template .^ 2))
-        fill!(image_template, zero(T))
-        image_template[1023:1027, 1004:1047] .= laser_template[end:-1:1, end:-1:1]
-        image_template = fftshift(image_template)
-        A .+= (inv(F) * ((F * image_template) .* fvalue))
-        b .+= (inv(F) * ((F * (image_template .^ 2)) .* fprecision))
-    end
-    corr = A ./ b
-    map!(x -> ifelse(isfinite(x), x, 0.0), corr)
-    map!(x -> ifelse(isfinite(x), x, 0.0), corrlamp)
-    return corr, corrlamp
 end
 
 
