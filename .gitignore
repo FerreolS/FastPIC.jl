@@ -45,6 +45,8 @@ Manifest.toml
 # Local History for Visual Studio Code
 .history/
 
+.claude/
+
 # Mac/OSX
 .DS_Store
  
