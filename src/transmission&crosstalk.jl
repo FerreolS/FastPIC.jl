@@ -106,11 +106,12 @@ function build_spectra_models(
         profiles::AbstractVector{<:Union{Profile, LensletError}},
         template,
         λ,
-        transmission = nothing;
+        transmission = nothing,
+        ::Type{T}=Float64;
         ntasks = 4 * Threads.nthreads()
-    )
+    ) where {T}
 
-    models = Vector{Union{Nothing, Vector{Float64}}}(undef, length(profiles))
+    models = Vector{Union{Nothing, Vector{T}}}(undef, length(profiles))
     fill!(models, nothing)
     if transmission === nothing
         tforeach(findall(is_profile, profiles); ntasks = ntasks) do i
@@ -136,7 +137,7 @@ function estimate_transmission(
         threshold = 0.02,
         ntasks = 4 * Threads.nthreads()
     ) where {T}
-    modeled_spectra = build_spectra_models(profiles, lamp_template, templateλ)
+    modeled_spectra = build_spectra_models(profiles, lamp_template, templateλ, nothing, T)
     transmission = tmap(WeightedVector{T}, lamp_spectra, modeled_spectra; ntasks = ntasks) do lamp_spec, model_spec
         t = lamp_spec ./ model_spec
         med = median(model_spec)
